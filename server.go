@@ -59,7 +59,10 @@ func NewServer(config Config) (*Server, error) {
 	done := make(chan bool, 1)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig)
-	ticker := time.NewTicker(config.Filter.RefreshInterval.Duration)
+	var ticker *time.Ticker
+	if config.Filter.RefreshInterval.Duration > 0 {
+		ticker = time.NewTicker(config.Filter.RefreshInterval.Duration)
+	}
 	server := &Server{
 		Config: config,
 		ticker: ticker,
@@ -67,9 +70,19 @@ func NewServer(config Config) (*Server, error) {
 		done:   done,
 		client: &dns.Client{Timeout: config.ResolverTimeout.Duration},
 	}
-	go server.reloadFilters()
+	if ticker != nil {
+		go server.reloadHosts()
+	}
 	go server.readSignal()
 	return server, nil
+}
+
+func nonFqdn(s string) string {
+	sz := len(s)
+	if sz > 0 && s[sz-1:] == "." {
+		return s[:sz-1]
+	}
+	return s
 }
 
 func (s *Server) logf(format string, v ...interface{}) {
@@ -93,7 +106,7 @@ func (s *Server) readSignal() {
 	}
 }
 
-func (s *Server) reloadFilters() {
+func (s *Server) reloadHosts() {
 	for {
 		select {
 		case <-s.ticker.C:
@@ -152,14 +165,6 @@ func (s *Server) Close() {
 	}
 }
 
-func nonFqdn(s string) string {
-	sz := len(s)
-	if sz > 0 && s[sz-1:] == "." {
-		return s[:sz-1]
-	}
-	return s
-}
-
 func (s *Server) reply(r *dns.Msg) *dns.Msg {
 	if len(r.Question) != 1 {
 		return nil
@@ -198,6 +203,9 @@ func (s *Server) reply(r *dns.Msg) *dns.Msg {
 
 // ServeDNS implements the dns.Handler interface.
 func (s *Server) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+	if s.matcher == nil {
+		s.loadHosts()
+	}
 	reply := s.reply(r)
 	if reply != nil {
 		s.logf("blocking host %q", r.Question[0].Name)
@@ -218,9 +226,6 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 // ListenAndServe listens on the network address addr and uses the server to process requests.
 func (s *Server) ListenAndServe(addr string, network string) error {
-	if s.matcher == nil {
-		s.loadHosts()
-	}
 	s.server = &dns.Server{Addr: addr, Net: network, Handler: s}
 	return s.server.ListenAndServe()
 }
