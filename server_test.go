@@ -79,6 +79,7 @@ func TestLoadHostsOnSignal(t *testing.T) {
 		},
 	}
 	s := newServer(conf, t)
+	defer s.Close()
 	s.signal <- syscall.SIGHUP
 	ts := time.Now()
 	for s.matcher == nil {

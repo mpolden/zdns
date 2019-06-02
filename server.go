@@ -89,16 +89,22 @@ func (s *Server) logf(format string, v ...interface{}) {
 }
 
 func (s *Server) readSignal() {
-	for sig := range s.signal {
-		switch sig {
-		case syscall.SIGHUP:
-			s.logf("received signal %s: reloading filters", sig)
-			s.loadHosts()
-		case syscall.SIGTERM, syscall.SIGINT:
-			s.logf("received signal %s: shutting down", sig)
-			s.Close()
-		default:
-			s.logf("received signal %s: ignoring", sig)
+	for {
+		select {
+		case <-s.done:
+			signal.Stop(s.signal)
+			return
+		case sig := <-s.signal:
+			switch sig {
+			case syscall.SIGHUP:
+				s.logf("received signal %s: reloading filters", sig)
+				s.loadHosts()
+			case syscall.SIGTERM, syscall.SIGINT:
+				s.logf("received signal %s: shutting down", sig)
+				s.Close()
+			default:
+				s.logf("received signal %s: ignoring", sig)
+			}
 		}
 	}
 }
@@ -106,11 +112,11 @@ func (s *Server) readSignal() {
 func (s *Server) reloadHosts() {
 	for {
 		select {
-		case <-s.ticker.C:
-			s.loadHosts()
 		case <-s.done:
 			s.ticker.Stop()
 			return
+		case <-s.ticker.C:
+			s.loadHosts()
 		}
 	}
 }
