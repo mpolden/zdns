@@ -45,11 +45,28 @@ func tempFile(s string) (string, error) {
 	return f.Name(), nil
 }
 
-func newServer(conf Config, t *testing.T) *Server {
+func TestLoadHostsOnSignal(t *testing.T) {
+	httpSrv := httpServer(hostsFile1)
+	defer httpSrv.Close()
+
+	f, err := tempFile(hostsFile2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f)
+
+	conf := Config{
+		Filter: FilterOptions{hijackMode: HijackZero},
+		Filters: []Filter{
+			{URL: httpSrv.URL, Reject: true},
+			{URL: f, Reject: true},
+		},
+	}
 	s, err := NewServer(conf)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer s.Close()
 	s.signal <- syscall.SIGHUP
 	ts := time.Now()
 	for s.matcher == nil {
@@ -58,10 +75,9 @@ func newServer(conf Config, t *testing.T) *Server {
 			t.Fatal("timed out waiting hosts to load")
 		}
 	}
-	return s
 }
 
-func TestLoadHostsOnSignal(t *testing.T) {
+func TestLoadHostsOnTick(t *testing.T) {
 	httpSrv := httpServer(hostsFile1)
 	defer httpSrv.Close()
 
@@ -81,9 +97,11 @@ func TestLoadHostsOnSignal(t *testing.T) {
 			{URL: f, Reject: true},
 		},
 	}
-	s := newServer(conf, t)
+	s, err := NewServer(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer s.Close()
-	s.signal <- syscall.SIGHUP
 	ts := time.Now()
 	for s.matcher == nil {
 		time.Sleep(10 * time.Millisecond)
