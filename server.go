@@ -29,6 +29,24 @@ type Server struct {
 	mu      sync.RWMutex
 }
 
+// NewServer returns a new server configured according to config.
+func NewServer(config Config) (*Server, error) {
+	server := &Server{
+		Config: config,
+		signal: make(chan os.Signal, 1),
+		done:   make(chan bool, 1),
+	}
+	if config.Filter.RefreshInterval.Duration > 0 {
+		server.ticker = time.NewTicker(config.Filter.RefreshInterval.Duration)
+		go server.reloadHosts()
+	}
+	signal.Notify(server.signal)
+	go server.readSignal()
+	proxy := dns.NewProxy(server.handler, config.Resolvers, config.Resolver.Timeout.Duration)
+	server.proxy = proxy
+	return server, nil
+}
+
 func readHosts(name string) (hosts.Hosts, error) {
 	url, err := url.Parse(name)
 	if err != nil {
@@ -54,33 +72,6 @@ func readHosts(name string) (hosts.Hosts, error) {
 	}
 	defer rc.Close()
 	return hosts.Parse(rc)
-}
-
-// NewServer returns a new server configured according to config.
-func NewServer(config Config) (*Server, error) {
-	done := make(chan bool, 1)
-	sig := make(chan os.Signal, 1)
-	var ticker *time.Ticker
-	if config.Filter.RefreshInterval.Duration > 0 {
-		ticker = time.NewTicker(config.Filter.RefreshInterval.Duration)
-	}
-
-	server := &Server{
-		Config: config,
-		ticker: ticker,
-		signal: sig,
-		done:   done,
-	}
-	if ticker != nil {
-		go server.reloadHosts()
-	}
-	go server.readSignal()
-	signal.Notify(sig)
-
-	proxy := dns.NewProxy(server.handler, config.Resolvers, config.Resolver.Timeout.Duration)
-	server.proxy = proxy
-
-	return server, nil
 }
 
 func nonFqdn(s string) string {
