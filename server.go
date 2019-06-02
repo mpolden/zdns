@@ -36,6 +36,7 @@ type Server struct {
 	done    chan bool
 	signal  chan os.Signal
 	mu      sync.RWMutex
+	started bool
 }
 
 // NewServer returns a new server configured according to config.
@@ -53,6 +54,7 @@ func NewServer(config Config) (*Server, error) {
 	go server.readSignal()
 	proxy := dns.NewProxy(server.hijack, config.Resolvers, config.Resolver.timeout)
 	server.proxy = proxy
+	server.started = true
 	return server, nil
 }
 
@@ -167,18 +169,24 @@ func (s *Server) loadHosts() {
 }
 
 // Close terminates all active operations and shuts down the DNS server.
-func (s *Server) Close() {
-	s.done <- true
-	s.done <- true
-	if err := s.proxy.Close(); err != nil {
-		s.logf("error during close: %s", err)
+func (s *Server) Close() error {
+	if !s.started {
+		return nil
+
 	}
+	s.done <- true
+	s.done <- true
+	return s.proxy.Close()
 }
 
 func (s *Server) hijack(r *dns.Request) *dns.Reply {
+	if r.Type != dns.TypeA && r.Type != dns.TypeAAAA {
+		return nil // Type not applicable
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.matcher.Match(nonFqdn(r.Name)) {
+	ipAddrs, ok := s.matcher.Match(nonFqdn(r.Name))
+	if !ok {
 		return nil // No match
 	}
 	switch s.Config.Filter.hijackMode {
@@ -192,7 +200,21 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 	case HijackEmpty:
 		return &dns.Reply{}
 	case HijackHosts:
-		// TODO: Provide answer from hosts
+		var ipv4Addr []net.IP
+		var ipv6Addr []net.IP
+		for _, ipAddr := range ipAddrs {
+			if ipAddr.IP.To4() == nil {
+				ipv6Addr = append(ipv6Addr, ipAddr.IP)
+			} else {
+				ipv4Addr = append(ipv4Addr, ipAddr.IP)
+			}
+		}
+		switch r.Type {
+		case dns.TypeA:
+			return dns.ReplyA(r.Name, ipv4Addr...)
+		case dns.TypeAAAA:
+			return dns.ReplyAAAA(r.Name, ipv6Addr...)
+		}
 	}
 	return nil
 }

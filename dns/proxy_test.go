@@ -73,3 +73,28 @@ func TestProxy(t *testing.T) {
 	assertRR(t, p, TypeA, "badhost1", "0.0.0.0")
 	assertRR(t, p, TypeAAAA, "badhost1", "::")
 }
+
+func TestReplyString(t *testing.T) {
+	var tests = []struct {
+		fn      func(string, ...net.IP) *Reply
+		fnName  string
+		name    string
+		ipAddrs []net.IP
+		out     string
+	}{
+		{ReplyA, "ReplyA", "test-host", []net.IP{net.ParseIP("192.0.2.1")},
+			"test-host\t3600\tIN\tA\t192.0.2.1"},
+		{ReplyA, "ReplyA", "test-host", []net.IP{net.ParseIP("192.0.2.1"), net.ParseIP("192.0.2.2")},
+			"test-host\t3600\tIN\tA\t192.0.2.1\ntest-host\t3600\tIN\tA\t192.0.2.2"},
+		{ReplyAAAA, "ReplyAAAA", "test-host", []net.IP{net.ParseIP("2001:db8::1")},
+			"test-host\t3600\tIN\tAAAA\t2001:db8::1"},
+		{ReplyAAAA, "ReplyAAAA", "test-host", []net.IP{net.ParseIP("2001:db8::1"), net.ParseIP("2001:db8::2")},
+			"test-host\t3600\tIN\tAAAA\t2001:db8::1\ntest-host\t3600\tIN\tAAAA\t2001:db8::2"},
+	}
+	for i, tt := range tests {
+		got := tt.fn(tt.name, tt.ipAddrs...).String()
+		if got != tt.out {
+			t.Errorf("#%d: %s(%q, %v) = %q, want %q", i, tt.fnName, tt.name, tt.ipAddrs, got, tt.out)
+		}
+	}
+}

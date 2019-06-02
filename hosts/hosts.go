@@ -99,17 +99,17 @@ type Matcher struct {
 	next  *Matcher
 }
 
-// Match returns true if name is matches any hosts.
-func (m *Matcher) Match(name string) bool {
+// Match returns the IP addresses matching name.
+func (m *Matcher) Match(name string) ([]net.IPAddr, bool) {
 	for m != nil {
 		if m.hosts != nil {
-			if _, ok := m.hosts.Get(name); ok {
-				return true
+			if ipAddrs, ok := m.hosts.Get(name); ok {
+				return ipAddrs, ok
 			}
 		}
 		m = m.next
 	}
-	return false
+	return nil, false
 }
 
 // NewMatcher creates a matcher for given hosts.

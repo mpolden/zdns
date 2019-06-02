@@ -110,18 +110,20 @@ func TestMatch(t *testing.T) {
 	m2 := Matcher{}
 	m3 := Matcher{next: &m1}
 	var tests = []struct {
-		m    Matcher
-		in   string
-		want bool
+		m   Matcher
+		in  string
+		out []net.IPAddr
+		ok  bool
 	}{
-		{m1, "foo", false},  // Non-matching name
-		{m1, "test1", true}, // Matching name
-		{m2, "foo", false},  // Empty matcher matches nothing
-		{m3, "test2", true}, // One of multiple matcher matches
+		{m1, "foo", nil, false}, // Non-matching name
+		{m1, "test1", []net.IPAddr{{IP: net.ParseIP("192.0.2.1")}}, true}, // Matching name
+		{m2, "foo", nil, false}, // Empty matcher matches nothing
+		{m3, "test2", []net.IPAddr{{IP: net.ParseIP("192.0.2.2")}}, true}, // One of multiple matcher matches
 	}
 	for i, tt := range tests {
-		if got := tt.m.Match(tt.in); got != tt.want {
-			t.Errorf("#%d: Match(%q) = %t, want %t", i, tt.in, got, tt.want)
+		ipAddrs, ok := tt.m.Match(tt.in)
+		if ok != tt.ok || !reflect.DeepEqual(ipAddrs, tt.out) {
+			t.Errorf("#%d: Match(%q) = (%v, %t), want (%v, %t)", i, tt.in, ipAddrs, ok, tt.out, tt.ok)
 		}
 	}
 }

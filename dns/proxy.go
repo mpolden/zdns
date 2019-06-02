@@ -2,6 +2,7 @@ package dns
 
 import (
 	"net"
+	"strings"
 	"time"
 
 	"github.com/miekg/dns"
@@ -43,19 +44,38 @@ func NewProxy(handler Handler, resolvers []string, timeout time.Duration) *Proxy
 }
 
 // ReplyA creates a resource record of type A.
-func ReplyA(name string, ip net.IP) *Reply {
-	return &Reply{[]dns.RR{&dns.A{
-		A:   ip,
-		Hdr: dns.RR_Header{Name: name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 3600},
-	}}}
+func ReplyA(name string, ipAddr ...net.IP) *Reply {
+	rr := make([]dns.RR, 0, len(ipAddr))
+	for _, ip := range ipAddr {
+		rr = append(rr, &dns.A{
+			A:   ip,
+			Hdr: dns.RR_Header{Name: name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 3600},
+		})
+	}
+	return &Reply{rr}
 }
 
 // ReplyAAAA creates a resource record of type AAAA.
-func ReplyAAAA(name string, ip net.IP) *Reply {
-	return &Reply{[]dns.RR{&dns.AAAA{
-		AAAA: ip,
-		Hdr:  dns.RR_Header{Name: name, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 3600},
-	}}}
+func ReplyAAAA(name string, ipAddr ...net.IP) *Reply {
+	rr := make([]dns.RR, 0, len(ipAddr))
+	for _, ip := range ipAddr {
+		rr = append(rr, &dns.AAAA{
+			AAAA: ip,
+			Hdr:  dns.RR_Header{Name: name, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 3600},
+		})
+	}
+	return &Reply{rr}
+}
+
+func (r *Reply) String() string {
+	b := strings.Builder{}
+	for i, rr := range r.rr {
+		b.WriteString(rr.String())
+		if i < len(r.rr)-1 {
+			b.WriteRune('\n')
+		}
+	}
+	return b.String()
 }
 
 func (p *Proxy) reply(r *dns.Msg) *dns.Msg {
