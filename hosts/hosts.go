@@ -103,3 +103,36 @@ func Combine(hosts ...*Hosts) *Hosts {
 	}
 	return &Hosts{entries: entries}
 }
+
+// A Matcher matches hosts entries.
+type Matcher struct {
+	hosts *Hosts
+	next  *Matcher
+}
+
+// Match returns true if name is matches any hosts.
+func (m *Matcher) Match(name string) bool {
+	for m != nil {
+		if m.hosts != nil {
+			if _, ok := m.hosts.Get(name); ok {
+				return true
+			}
+		}
+		m = m.next
+	}
+	return false
+}
+
+// NewMatcher creates a matcher for given hosts.
+func NewMatcher(hosts ...*Hosts) *Matcher {
+	matcher := &Matcher{}
+	m := matcher
+	for i, h := range hosts {
+		m.hosts = h
+		if i < len(hosts)-1 {
+			m.next = &Matcher{}
+		}
+		m = m.next
+	}
+	return matcher
+}

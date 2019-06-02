@@ -125,3 +125,47 @@ func TestCombine(t *testing.T) {
 		t.Errorf("want %+v, got %+v", want, hosts.entries)
 	}
 }
+
+func TestMatch(t *testing.T) {
+	m1 := Matcher{
+		hosts: &Hosts{entries: map[string][]net.IPAddr{
+			"test1": {{IP: net.ParseIP("192.0.2.1")}},
+			"test2": {{IP: net.ParseIP("192.0.2.2")}},
+		}},
+	}
+	m2 := Matcher{}
+	m3 := Matcher{next: &m1}
+	var tests = []struct {
+		m    Matcher
+		in   string
+		want bool
+	}{
+		{m1, "foo", false},  // Non-matching name
+		{m1, "test1", true}, // Matching name
+		{m2, "foo", false},  // Empty matcher matches nothing
+		{m3, "test2", true}, // One of multiple matcher matches
+	}
+	for i, tt := range tests {
+		if got := tt.m.Match(tt.in); got != tt.want {
+			t.Errorf("#%d: Match(%q) = %t, want %t", i, tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestNewMatcher(t *testing.T) {
+	hosts1 := &Hosts{}
+	hosts2 := &Hosts{}
+	m := NewMatcher(hosts1, hosts2)
+	if m.hosts != hosts1 {
+		t.Errorf("got %p, want %p", m.hosts, hosts1)
+	}
+	if m.next == nil {
+		t.Error("want non-nil")
+	}
+	if m.next.hosts != hosts2 {
+		t.Errorf("got %p, want %p", m.next.hosts, hosts2)
+	}
+	if m.next.next != nil {
+		t.Error("want nil leaf")
+	}
+}
