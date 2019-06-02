@@ -17,6 +17,15 @@ import (
 	"github.com/mpolden/zdns/hosts"
 )
 
+const (
+	// HijackZero returns the zero IP address to matching requests.
+	HijackZero = iota
+	// HijackEmpty returns an empty answer to matching requests.
+	HijackEmpty
+	// HijackHosts returns the value of the  hoss entry to matching request.
+	HijackHosts
+)
+
 // A Server defines parameters for running a DNS server.
 type Server struct {
 	Config  Config
@@ -36,13 +45,13 @@ func NewServer(config Config) (*Server, error) {
 		signal: make(chan os.Signal, 1),
 		done:   make(chan bool, 1),
 	}
-	if config.Filter.RefreshInterval.Duration > 0 {
-		server.ticker = time.NewTicker(config.Filter.RefreshInterval.Duration)
+	if config.Filter.refreshInterval > 0 {
+		server.ticker = time.NewTicker(config.Filter.refreshInterval)
 		go server.reloadHosts()
 	}
 	signal.Notify(server.signal)
 	go server.readSignal()
-	proxy := dns.NewProxy(server.handler, config.Resolvers, config.Resolver.Timeout.Duration)
+	proxy := dns.NewProxy(server.hijack, config.Resolvers, config.Resolver.timeout)
 	server.proxy = proxy
 	return server, nil
 }
@@ -166,23 +175,23 @@ func (s *Server) Close() {
 	}
 }
 
-func (s *Server) handler(r *dns.Request) *dns.Reply {
+func (s *Server) hijack(r *dns.Request) *dns.Reply {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.matcher.Match(nonFqdn(r.Name)) {
 		return nil // No match
 	}
-	switch s.Config.Filter.RejectMode {
-	case "zero":
+	switch s.Config.Filter.hijackMode {
+	case HijackZero:
 		switch r.Type {
 		case dns.TypeA:
 			return dns.ReplyA(r.Name, net.IPv4zero)
 		case dns.TypeAAAA:
 			return dns.ReplyAAAA(r.Name, net.IPv6zero)
 		}
-	case "no-data":
+	case HijackEmpty:
 		return &dns.Reply{}
-	case "hosts":
+	case HijackHosts:
 		// TODO: Provide answer from hosts
 	}
 	return nil

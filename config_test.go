@@ -21,7 +21,7 @@ protocol = "udp" # or: tcp, tcp-tls
 timeout = "1s"
 
 [filter]
-reject_mode = "zero" # or: no-data, hosts
+hijack_mode = "zero" # or: empty, hosts
 refresh_interval = "48h"
 
 [[filters]]
@@ -45,8 +45,8 @@ reject = true
 	}{
 		{"CacheSize", conf.CacheSize, 2048},
 		{"len(Resolvers)", len(conf.Resolvers), 2},
-		{"Resolver.Timeout", int(conf.Resolver.Timeout.Duration), int(time.Second)},
-		{"Filter.RefreshInterval", int(conf.Filter.RefreshInterval.Duration), int(48 * time.Hour)},
+		{"Resolver.Timeout", int(conf.Resolver.timeout), int(time.Second)},
+		{"Filter.RefreshInterval", int(conf.Filter.refreshInterval), int(48 * time.Hour)},
 		{"len(Filters)", len(conf.Filters), 2},
 	}
 	for _, tt := range intTests {
@@ -64,7 +64,7 @@ reject = true
 		{"Protocol", conf.Protocol, "udp"},
 		{"Resolver.Hosts[0]", conf.Resolvers[0], "1.1.1.1:53"},
 		{"Resolver.Hosts[1]", conf.Resolvers[1], "1.0.0.1:53"},
-		{"Filter.RejectMode", conf.Filter.RejectMode, "zero"},
+		{"Filter.RejectMode", conf.Filter.HijackMode, "zero"},
 		{"Filters[0].Source", conf.Filters[0].URL, "file:///home/foo/hosts-good"},
 		{"Filters[1].Source", conf.Filters[1].URL, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},
 	}

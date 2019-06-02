@@ -72,7 +72,10 @@ func TestLoadHostsOnSignal(t *testing.T) {
 	defer os.Remove(f)
 
 	conf := Config{
-		Filter: FilterOptions{RejectMode: "zero"},
+		Filter: FilterOptions{
+			hijackMode:      HijackZero,
+			refreshInterval: time.Duration(10 * time.Millisecond),
+		},
 		Filters: []Filter{
 			{URL: httpSrv.URL, Reject: true},
 			{URL: f, Reject: true},

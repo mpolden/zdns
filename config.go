@@ -23,28 +23,23 @@ type Config struct {
 
 // ResolverOptions controlers the behaviour of resolvers.
 type ResolverOptions struct {
-	Protocol string   `toml:"protocol"`
-	Timeout  duration `toml:"timeout"`
+	Protocol string `toml:"protocol"`
+	Timeout  string `toml:"timeout"`
+	timeout  time.Duration
 }
 
 // FilterOptions controls the behaviour of configured filters.
 type FilterOptions struct {
-	RejectMode      string   `toml:"reject_mode"`
-	RefreshInterval duration `toml:"refresh_interval"`
+	HijackMode      string `toml:"hijack_mode"`
+	hijackMode      int
+	RefreshInterval string `toml:"refresh_interval"`
+	refreshInterval time.Duration
 }
 
 // A Filter specifies a source of DNS names and how they should be filtered.
 type Filter struct {
 	URL    string
 	Reject bool
-}
-
-type duration struct{ time.Duration }
-
-func (d *duration) UnmarshalText(text []byte) error {
-	var err error
-	d.Duration, err = time.ParseDuration(string(text))
-	return err
 }
 
 func (c *Config) load() error {
@@ -57,12 +52,23 @@ func (c *Config) load() error {
 	if c.CacheSize < 0 {
 		return fmt.Errorf("cache size must be >= 0")
 	}
-	switch c.Filter.RejectMode {
-	case "zero", "no-data":
+	switch c.Filter.HijackMode {
+	case "zero":
+		c.Filter.hijackMode = HijackZero
+	case "empty":
+		c.Filter.hijackMode = HijackEmpty
+	case "hosts":
+		c.Filter.hijackMode = HijackHosts
 	default:
-		return fmt.Errorf("invalid reject mode: %q", c.Filter.RejectMode)
+		return fmt.Errorf("invalid reject mode: %q", c.Filter.HijackMode)
 	}
-	if c.Filter.RefreshInterval.Duration < 0 {
+
+	var err error
+	c.Filter.refreshInterval, err = time.ParseDuration(c.Filter.RefreshInterval)
+	if err != nil {
+		return fmt.Errorf("invalid refresh interval: %s", err)
+	}
+	if c.Filter.refreshInterval < 0 {
 		return fmt.Errorf("refresh interval must be >= 0")
 	}
 	for _, f := range c.Filters {
@@ -92,7 +98,11 @@ func (c *Config) load() error {
 	default:
 		return fmt.Errorf("invalid resolver protocol: %s", c.Resolver.Protocol)
 	}
-	if c.Resolver.Timeout.Duration < 0 {
+	c.Resolver.timeout, err = time.ParseDuration(c.Resolver.Timeout)
+	if err != nil {
+		return fmt.Errorf("invalid resolver timeout: %s", c.Resolver.Timeout)
+	}
+	if c.Resolver.timeout < 0 {
 		return fmt.Errorf("resolver timeout must be >= 0")
 	}
 	return nil
