@@ -5,22 +5,17 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jessevdk/go-flags"
 	"github.com/mpolden/zdns"
 )
 
 const (
-	configName = ".zdnsrc"
+	name       = "zdns"
+	logPrefix  = name + ": "
+	configName = "." + name + "rc"
 )
 
-type options struct {
-	Config string `short:"f" long:"config" description:"Config file" value-name:"FILE" default:"~/.zdnsrc"`
-	Log    *log.Logger
-}
-
-func (o *options) readConfig() (zdns.Config, error) {
-	name := o.Config
-	if o.Config == "~/"+configName {
+func readConfig(name string) (zdns.Config, error) {
+	if name == "" {
 		home := os.Getenv("HOME")
 		name = filepath.Join(home, configName)
 	}
@@ -31,24 +26,30 @@ func (o *options) readConfig() (zdns.Config, error) {
 	return zdns.ReadConfig(f)
 }
 
-func main() {
-	var opts options
-	log := log.New(os.Stderr, "zdns: ", 0)
-	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
-	if _, err := p.Parse(); err != nil {
-		log.Fatal(err)
+func newServer(log *log.Logger, args []string) (*zdns.Server, error) {
+	name := ""
+	if len(args) >= 2 {
+		name = args[1]
 	}
-
-	conf, err := opts.readConfig()
+	conf, err := readConfig(name)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	server, err := zdns.NewServer(conf)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	server.Logger = log
-	if err := server.ListenAndServe(conf.Listen, conf.Protocol); err != nil {
+	return server, nil
+}
+
+func main() {
+	log := log.New(os.Stderr, logPrefix, 0)
+	srv, err := newServer(log, os.Args)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }

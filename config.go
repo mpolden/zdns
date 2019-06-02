@@ -62,7 +62,9 @@ func (c *Config) load() error {
 	default:
 		return fmt.Errorf("invalid reject mode: %q", c.Filter.HijackMode)
 	}
-
+	if c.Filter.RefreshInterval == "" {
+		c.Filter.RefreshInterval = "0"
+	}
 	var err error
 	c.Filter.refreshInterval, err = time.ParseDuration(c.Filter.RefreshInterval)
 	if err != nil {

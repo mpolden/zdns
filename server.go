@@ -197,7 +197,7 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 	return nil
 }
 
-// ListenAndServe listens on the network address addr and uses the server to process requests.
-func (s *Server) ListenAndServe(addr, network string) error {
-	return s.proxy.ListenAndServe(addr, network)
+// ListenAndServe starts a server on configured address and protocol.
+func (s *Server) ListenAndServe() error {
+	return s.proxy.ListenAndServe(s.Config.Listen, s.Config.Protocol)
 }
