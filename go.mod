@@ -2,6 +2,7 @@ module github.com/mpolden/zdns
 
 require (
 	github.com/BurntSushi/toml v0.3.1
+	github.com/jessevdk/go-flags v1.4.0
 	github.com/miekg/dns v1.1.13
 	golang.org/x/crypto v0.0.0-20190530122614-20be4c3c3ed5 // indirect
 	golang.org/x/net v0.0.0-20190522155817-f3200d17e092 // indirect

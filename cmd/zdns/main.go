@@ -3,20 +3,44 @@ package main
 import (
 	"log"
 	"os"
+	"path/filepath"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/mpolden/zdns"
 	"github.com/mpolden/zdns/dns"
 )
 
-func main() {
-	log := log.New(os.Stderr, "zdns: ", 0)
-	// TODO: Add command line options
-	f, err := os.Open("/Users/martin/.zdnsrc")
+const (
+	configName = ".zdnsrc"
+)
+
+type options struct {
+	Config string `short:"f" long:"config" description:"Config file" value-name:"FILE" default:"~/.zdnsrc"`
+	Log    *log.Logger
+}
+
+func (o *options) readConfig() (zdns.Config, error) {
+	name := o.Config
+	if o.Config == "~/"+configName {
+		home := os.Getenv("HOME")
+		name = filepath.Join(home, configName)
+	}
+	f, err := os.Open(name)
 	if err != nil {
+		return zdns.Config{}, err
+	}
+	return zdns.ReadConfig(f)
+}
+
+func main() {
+	var opts options
+	log := log.New(os.Stderr, "zdns: ", 0)
+	p := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
+	if _, err := p.Parse(); err != nil {
 		log.Fatal(err)
 	}
-	defer f.Close()
-	conf, err := zdns.ReadConfig(f)
+
+	conf, err := opts.readConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,7 +49,7 @@ func main() {
 		log.Fatal(err)
 	}
 	server.Logger = log
-	if err := server.ListenAndServe(":10053", "udp"); err != nil {
+	if err := server.ListenAndServe(conf.Listen, conf.Protocol); err != nil {
 		log.Fatal(err)
 	}
 }
