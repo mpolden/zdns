@@ -33,23 +33,23 @@ type Parser struct {
 }
 
 // Hosts represents a hosts file.
-type Hosts struct {
-	entries map[string][]net.IPAddr
-}
+type Hosts map[string][]net.IPAddr
 
 // Parse uses DefaultParser to parse hosts from reader r.
-func Parse(r io.Reader) (*Hosts, error) {
+func Parse(r io.Reader) (Hosts, error) {
 	return DefaultParser.Parse(r)
 }
 
 // Get returns the IP addresses of name.
-func (h *Hosts) Get(name string) ([]net.IPAddr, bool) {
-	ipAddrs, ok := h.entries[name]
+func (h Hosts) Get(name string) ([]net.IPAddr, bool) {
+	ipAddrs, ok := h[name]
 	return ipAddrs, ok
 }
 
-// Len returns the number of entries.
-func (h *Hosts) Len() int { return len(h.entries) }
+// Del deletes the hosts entry of name.
+func (h Hosts) Del(name string) {
+	delete(h, name)
+}
 
 func (p *Parser) ignore(name string) bool {
 	for _, ignored := range p.IgnoredHosts {
@@ -60,53 +60,42 @@ func (p *Parser) ignore(name string) bool {
 	return false
 }
 
-// Parse parses HOSTS from reader r.
-func (p *Parser) Parse(r io.Reader) (*Hosts, error) {
+// Parse parses hosts from reader r.
+func (p *Parser) Parse(r io.Reader) (Hosts, error) {
 	entries := make(map[string][]net.IPAddr)
 	scanner := bufio.NewScanner(r)
-	n := 1
+	n := 0
 	for scanner.Scan() {
+		n++
 		line := scanner.Text()
-		if strings.HasPrefix(line, "#") {
-			continue
-		}
 		fields := strings.Fields(line)
 		if len(fields) < 2 {
 			continue
 		}
-		ipAddr, err := net.ResolveIPAddr("", fields[0])
+		ip := fields[0]
+		if strings.HasPrefix(ip, "#") {
+			continue
+		}
+		ipAddr, err := net.ResolveIPAddr("", ip)
 		if err != nil {
-			return nil, fmt.Errorf("line %d: invalid ip address: %s", n, fields[0])
+			return nil, fmt.Errorf("line %d: invalid ip address: %s - %s", n, fields[0], line)
 		}
 		for _, name := range fields[1:] {
+			if strings.HasPrefix(name, "#") {
+				break
+			}
 			if p.ignore(name) {
 				continue
 			}
 			entries[name] = append(entries[name], *ipAddr)
 		}
-		n++
 	}
-	return &Hosts{entries: entries}, nil
-}
-
-// Combine combines multiple Hosts into one. If name is present in multiple hosts, the first encountered name is kept
-// and duplicates are discarded.
-func Combine(hosts ...*Hosts) *Hosts {
-	entries := make(map[string][]net.IPAddr)
-	for _, h := range hosts {
-		for name, ipAddr := range h.entries {
-			if _, ok := entries[name]; ok {
-				continue // Already added
-			}
-			entries[name] = ipAddr
-		}
-	}
-	return &Hosts{entries: entries}
+	return entries, nil
 }
 
 // A Matcher matches hosts entries.
 type Matcher struct {
-	hosts *Hosts
+	hosts Hosts
 	next  *Matcher
 }
 
@@ -124,7 +113,7 @@ func (m *Matcher) Match(name string) bool {
 }
 
 // NewMatcher creates a matcher for given hosts.
-func NewMatcher(hosts ...*Hosts) *Matcher {
+func NewMatcher(hosts ...Hosts) *Matcher {
 	matcher := &Matcher{}
 	m := matcher
 	for i, h := range hosts {
