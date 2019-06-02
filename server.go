@@ -13,25 +13,27 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
-
-	"github.com/miekg/dns"
 )
 
 // A Server defines parameters for running a DNS server.
 type Server struct {
 	Config  Config
 	Logger  *log.Logger
-	mu      sync.RWMutex
-	server  *dns.Server
-	client  *dns.Client
+	proxy   *dns.Proxy
 	matcher *hosts.Matcher
 	ticker  *time.Ticker
 	done    chan bool
 	signal  chan os.Signal
+	mu      sync.RWMutex
 }
 
-func readHosts(url *url.URL) (hosts.Hosts, error) {
+func readHosts(name string) (hosts.Hosts, error) {
+	url, err := url.Parse(name)
+	if err != nil {
+		return nil, err
+	}
 	var rc io.ReadCloser
 	switch url.Scheme {
 	case "file":
@@ -58,22 +60,26 @@ func readHosts(url *url.URL) (hosts.Hosts, error) {
 func NewServer(config Config) (*Server, error) {
 	done := make(chan bool, 1)
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig)
 	var ticker *time.Ticker
 	if config.Filter.RefreshInterval.Duration > 0 {
 		ticker = time.NewTicker(config.Filter.RefreshInterval.Duration)
 	}
+
 	server := &Server{
 		Config: config,
 		ticker: ticker,
 		signal: sig,
 		done:   done,
-		client: &dns.Client{Timeout: config.ResolverTimeout.Duration},
 	}
 	if ticker != nil {
 		go server.reloadHosts()
 	}
 	go server.readSignal()
+	signal.Notify(sig)
+
+	proxy := dns.NewProxy(server.handler, config.Resolvers, config.Resolver.Timeout.Duration)
+	server.proxy = proxy
+
 	return server, nil
 }
 
@@ -121,15 +127,15 @@ func (s *Server) reloadHosts() {
 func (s *Server) loadHosts() {
 	var hs []hosts.Hosts
 	var size int
-	for _, filter := range s.Config.Filters {
-		h, err := readHosts(filter.URL.URL)
+	for _, f := range s.Config.Filters {
+		h, err := readHosts(f.URL)
 		if err != nil {
-			s.logf("failed to read hosts from %s: %s", filter.URL.URL, err)
+			s.logf("failed to read hosts from %s: %s", f.URL, err)
 			continue
 		}
-		if filter.Reject {
+		if f.Reject {
 			hs = append(hs, h)
-			s.logf("loaded %d hosts from %s", len(h), filter.URL.URL)
+			s.logf("loaded %d hosts from %s", len(h), f.URL)
 			size += len(h)
 		} else {
 			var removed int
@@ -143,7 +149,7 @@ func (s *Server) loadHosts() {
 			}
 			size -= removed
 			if removed > 0 {
-				s.logf("removed %d hosts from %s", len(h), filter.URL.URL)
+				s.logf("removed %d hosts from %s", len(h), f.URL)
 			}
 		}
 	}
@@ -158,74 +164,34 @@ func (s *Server) loadHosts() {
 func (s *Server) Close() {
 	s.done <- true
 	s.done <- true
-	if s.server != nil {
-		if err := s.server.Shutdown(); err != nil {
-			s.logf("error during shutdown: %s", err)
-		}
+	if err := s.proxy.Close(); err != nil {
+		s.logf("error during close: %s", err)
 	}
 }
 
-func (s *Server) reply(r *dns.Msg) *dns.Msg {
-	if len(r.Question) != 1 {
-		return nil
-	}
-	name := r.Question[0].Name
+func (s *Server) handler(r *dns.Request) *dns.Reply {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.matcher.Match(nonFqdn(name)) {
+	if !s.matcher.Match(nonFqdn(r.Name)) {
 		return nil // No match
 	}
-	m := dns.Msg{}
 	switch s.Config.Filter.RejectMode {
 	case "zero":
-		switch r.Question[0].Qtype {
+		switch r.Type {
 		case dns.TypeA:
-			m.Answer = []dns.RR{&dns.A{
-				A:   net.IPv4zero,
-				Hdr: dns.RR_Header{Name: name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 3600},
-			}}
+			return dns.ReplyA(r.Name, net.IPv4zero)
 		case dns.TypeAAAA:
-			m.Answer = []dns.RR{&dns.AAAA{
-				AAAA: net.IPv6zero,
-				Hdr:  dns.RR_Header{Name: name, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 3600},
-			}}
+			return dns.ReplyAAAA(r.Name, net.IPv6zero)
 		}
 	case "no-data":
-		// Nothing to do
+		return &dns.Reply{}
 	case "hosts":
 		// TODO: Provide answer from hosts
 	}
-	// Pretend this is an recursive answer
-	m.RecursionAvailable = true
-	m.SetReply(r)
-	return &m
-}
-
-// ServeDNS implements the dns.Handler interface.
-func (s *Server) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	if s.matcher == nil {
-		s.loadHosts()
-	}
-	reply := s.reply(r)
-	if reply != nil {
-		s.logf("blocking host %q", r.Question[0].Name)
-		w.WriteMsg(reply)
-		return
-	}
-	for _, resolver := range s.Config.Resolvers {
-		rr, _, err := s.client.Exchange(r, resolver.Name)
-		if err != nil {
-			s.logf("query failed: %s", err)
-			continue
-		}
-		w.WriteMsg(rr)
-		return
-	}
-	dns.HandleFailed(w, r)
+	return nil
 }
 
 // ListenAndServe listens on the network address addr and uses the server to process requests.
-func (s *Server) ListenAndServe(addr string, network string) error {
-	s.server = &dns.Server{Addr: addr, Net: network, Handler: s}
-	return s.server.ListenAndServe()
+func (s *Server) ListenAndServe(addr, network string) error {
+	return s.proxy.ListenAndServe(addr, network)
 }

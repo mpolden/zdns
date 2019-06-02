@@ -12,19 +12,19 @@ import (
 
 // Config specifies is the zdns configuration parameters.
 type Config struct {
-	Listen          string
-	Protocol        string
-	CacheSize       int `toml:"cache_size"`
-	Filter          FilterOptions
-	Filters         []Filter
-	ResolverTimeout duration `toml:"resolver_timeout"`
-	Resolvers       []Resolver
+	Listen    string
+	Protocol  string
+	CacheSize int `toml:"cache_size"`
+	Filter    FilterOptions
+	Filters   []Filter
+	Resolver  ResolverOptions
+	Resolvers []string
 }
 
-// A Resolver is a recursive DNS resolver.
-type Resolver struct {
-	Name     string
-	Protocol string
+// ResolverOptions controlers the behaviour of resolvers.
+type ResolverOptions struct {
+	Protocol string   `toml:"protocol"`
+	Timeout  duration `toml:"timeout"`
 }
 
 // FilterOptions controls the behaviour of configured filters.
@@ -35,19 +35,11 @@ type FilterOptions struct {
 
 // A Filter specifies a source of DNS names and how they should be filtered.
 type Filter struct {
-	URL    hostsURL
+	URL    string
 	Reject bool
 }
 
-type hostsURL struct{ *url.URL }
-
 type duration struct{ time.Duration }
-
-func (u *hostsURL) UnmarshalText(text []byte) error {
-	var err error
-	u.URL, err = url.Parse(string(text))
-	return err
-}
 
 func (d *duration) UnmarshalText(text []byte) error {
 	var err error
@@ -74,30 +66,33 @@ func (c *Config) load() error {
 		return fmt.Errorf("refresh interval must be >= 0")
 	}
 	for _, f := range c.Filters {
-		if f.URL.URL == nil {
+		if f.URL == "" {
 			return fmt.Errorf("url must be set")
 		}
-		switch f.URL.URL.Scheme {
+		url, err := url.Parse(f.URL)
+		if err != nil {
+			return fmt.Errorf("%s: invalid url: %s", f.URL, err)
+		}
+		switch url.Scheme {
 		case "file", "http", "https":
 		default:
-			return fmt.Errorf("%s: invalid scheme: %s", f.URL.URL.String(), f.URL.URL.Scheme)
+			return fmt.Errorf("%s: invalid scheme: %s", f.URL, url.Scheme)
 		}
 	}
-	for i := range c.Resolvers {
-		r := c.Resolvers[i]
-		if _, _, err := net.SplitHostPort(r.Name); err != nil {
-			return fmt.Errorf("%s: %s", r.Name, err)
-		}
-		if r.Protocol == "udp" {
-			r.Protocol = ""
-		}
-		switch r.Protocol {
-		case "", "tcp", "tcp-tls":
-		default:
-			return fmt.Errorf("%s: invalid protocol: %s", r.Name, r.Protocol)
+	for _, r := range c.Resolvers {
+		if _, _, err := net.SplitHostPort(r); err != nil {
+			return fmt.Errorf("%s: %s", r, err)
 		}
 	}
-	if c.ResolverTimeout.Duration < 0 {
+	if c.Resolver.Protocol == "udp" {
+		c.Resolver.Protocol = ""
+	}
+	switch c.Resolver.Protocol {
+	case "", "tcp", "tcp-tls":
+	default:
+		return fmt.Errorf("invalid resolver protocol: %s", c.Resolver.Protocol)
+	}
+	if c.Resolver.Timeout.Duration < 0 {
 		return fmt.Errorf("resolver timeout must be >= 0")
 	}
 	return nil

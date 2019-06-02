@@ -11,17 +11,17 @@ func TestConfig(t *testing.T) {
 listen = "0.0.0.0:53"
 protocol = "udp"
 cache_size = 2048
-resolver_timeout = "1s"
+resolvers = [
+  "1.1.1.1:53",
+  "1.0.0.1:53",
+]
 
-[[resolvers]]
-name = "1.1.1.1:53"
-
-[[resolvers]]
-name = "1.0.0.1:53"
-protocol = "udp" # tcp, tcp-tls
+[resolver]
+protocol = "udp" # or: tcp, tcp-tls
+timeout = "1s"
 
 [filter]
-reject_mode = "zero" # no-data, hosts-address
+reject_mode = "zero" # or: no-data, hosts
 refresh_interval = "48h"
 
 [[filters]]
@@ -45,7 +45,7 @@ reject = true
 	}{
 		{"CacheSize", conf.CacheSize, 2048},
 		{"len(Resolvers)", len(conf.Resolvers), 2},
-		{"Resolver.Timeout", int(conf.ResolverTimeout.Duration), int(time.Second)},
+		{"Resolver.Timeout", int(conf.Resolver.Timeout.Duration), int(time.Second)},
 		{"Filter.RefreshInterval", int(conf.Filter.RefreshInterval.Duration), int(48 * time.Hour)},
 		{"len(Filters)", len(conf.Filters), 2},
 	}
@@ -62,11 +62,11 @@ reject = true
 	}{
 		{"Listen", conf.Listen, "0.0.0.0:53"},
 		{"Protocol", conf.Protocol, "udp"},
-		{"Resolver.Hosts[0]", conf.Resolvers[0].Name, "1.1.1.1:53"},
-		{"Resolver.Hosts[1]", conf.Resolvers[1].Name, "1.0.0.1:53"},
+		{"Resolver.Hosts[0]", conf.Resolvers[0], "1.1.1.1:53"},
+		{"Resolver.Hosts[1]", conf.Resolvers[1], "1.0.0.1:53"},
 		{"Filter.RejectMode", conf.Filter.RejectMode, "zero"},
-		{"Filters[0].Source", conf.Filters[0].URL.URL.String(), "file:///home/foo/hosts-good"},
-		{"Filters[1].Source", conf.Filters[1].URL.URL.String(), "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},
+		{"Filters[0].Source", conf.Filters[0].URL, "file:///home/foo/hosts-good"},
+		{"Filters[1].Source", conf.Filters[1].URL, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},
 	}
 	for _, tt := range stringTests {
 		if tt.got != tt.want {
