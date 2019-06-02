@@ -1,8 +1,12 @@
 package dns
 
 import (
+	"fmt"
+	"io"
 	"log"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"sync"
@@ -10,49 +14,60 @@ import (
 	"time"
 
 	"github.com/mpolden/zdns"
+	"github.com/mpolden/zdns/hosts"
 
 	"github.com/miekg/dns"
 )
 
 // A Server defines parameters for running a DNS server.
 type Server struct {
-	Config        zdns.Config
-	Logger        *log.Logger
-	filters       []*filterList
-	rejectedHosts map[string]bool
-	mu            sync.RWMutex
-	server        *dns.Server
-	client        *dns.Client
-	ticker        *time.Ticker
-	done          chan bool
-	signal        chan os.Signal
+	Config  zdns.Config
+	Logger  *log.Logger
+	mu      sync.RWMutex
+	server  *dns.Server
+	client  *dns.Client
+	matcher *hosts.Matcher
+	ticker  *time.Ticker
+	done    chan bool
+	signal  chan os.Signal
+}
+
+func readHosts(url *url.URL) (hosts.Hosts, error) {
+	var rc io.ReadCloser
+	switch url.Scheme {
+	case "file":
+		f, err := os.Open(url.Path)
+		if err != nil {
+			return nil, err
+		}
+		rc = f
+	case "http", "https":
+		client := http.Client{Timeout: 10 * time.Second}
+		res, err := client.Get(url.String())
+		if err != nil {
+			return nil, err
+		}
+		rc = res.Body
+	default:
+		return nil, fmt.Errorf("%s: invalid scheme: %s", url, url.Scheme)
+	}
+	defer rc.Close()
+	return hosts.Parse(rc)
 }
 
 // NewServer returns a new server configured according to config.
 func NewServer(config zdns.Config) (*Server, error) {
-	var filters []*filterList
-	for _, f := range config.Filters {
-		fl, err := newFilterList(f.URL.URL, f.Reject)
-		if err != nil {
-			return nil, err
-		}
-		filters = append(filters, fl)
-	}
-
 	done := make(chan bool, 1)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig)
 	ticker := time.NewTicker(config.Filter.RefreshInterval.Duration)
-
 	server := &Server{
-		Config:  config,
-		filters: filters,
-		ticker:  ticker,
-		signal:  sig,
-		done:    done,
-		client:  &dns.Client{Timeout: config.ResolverTimeout.Duration},
+		Config: config,
+		ticker: ticker,
+		signal: sig,
+		done:   done,
+		client: &dns.Client{Timeout: config.ResolverTimeout.Duration},
 	}
-
 	go server.reloadFilters()
 	go server.readSignal()
 	return server, nil
@@ -69,7 +84,7 @@ func (s *Server) readSignal() {
 		switch sig {
 		case syscall.SIGHUP:
 			s.logf("received signal %s: reloading filters", sig)
-			s.loadFilters()
+			s.loadHosts()
 		case syscall.SIGTERM, syscall.SIGINT:
 			s.logf("received signal %s: shutting down", sig)
 			s.Close()
@@ -83,7 +98,7 @@ func (s *Server) reloadFilters() {
 	for {
 		select {
 		case <-s.ticker.C:
-			s.loadFilters()
+			s.loadHosts()
 		case <-s.done:
 			s.ticker.Stop()
 			return
@@ -91,29 +106,40 @@ func (s *Server) reloadFilters() {
 	}
 }
 
-func (s *Server) loadFilters() {
-	rejectedHosts := make(map[string]bool)
-	for _, f := range s.filters {
-		filter, err := f.Load()
+func (s *Server) loadHosts() {
+	var hs []hosts.Hosts
+	var size int
+	for _, filter := range s.Config.Filters {
+		h, err := readHosts(filter.URL.URL)
 		if err != nil {
-			s.logf("failed to load filters from %s: %s", f.URL, err)
+			s.logf("failed to read hosts from %s: %s", filter.URL.URL, err)
 			continue
 		}
-		var loaded int
-		for host, action := range filter {
-			host = dns.Fqdn(host)
-			if _, ok := rejectedHosts[host]; ok {
-				s.logf("ignoring %q from %s: already filtered", host, f.URL)
-				continue
+		if filter.Reject {
+			hs = append(hs, h)
+			s.logf("loaded %d hosts from %s", len(h), filter.URL.URL)
+			size += len(h)
+		} else {
+			var removed int
+			for hostToRemove := range h {
+				for _, h := range hs {
+					if _, ok := h.Get(hostToRemove); ok {
+						removed++
+						h.Del(hostToRemove)
+					}
+				}
 			}
-			loaded++
-			rejectedHosts[host] = action
+			size -= removed
+			if removed > 0 {
+				s.logf("removed %d hosts from %s", len(h), filter.URL.URL)
+			}
 		}
-		s.logf("loaded %d/%d hosts from %s", loaded, len(filter), f.URL)
 	}
+	m := hosts.NewMatcher(hs...)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.rejectedHosts = rejectedHosts
+	s.matcher = m
+	s.logf("loaded %d hosts in total", size)
 }
 
 // Close terminates all active operations and shuts down the DNS server.
@@ -127,6 +153,14 @@ func (s *Server) Close() {
 	}
 }
 
+func nonFqdn(s string) string {
+	sz := len(s)
+	if sz > 0 && s[sz-1:] == "." {
+		return s[:sz-1]
+	}
+	return s
+}
+
 func (s *Server) reply(r *dns.Msg) *dns.Msg {
 	if len(r.Question) != 1 {
 		return nil
@@ -134,7 +168,7 @@ func (s *Server) reply(r *dns.Msg) *dns.Msg {
 	name := r.Question[0].Name
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.rejectedHosts[name] {
+	if !s.matcher.Match(nonFqdn(name)) {
 		return nil // No match
 	}
 	m := dns.Msg{}
@@ -183,8 +217,8 @@ func (s *Server) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 // ListenAndServe listens on the network address addr and uses the server to process requests.
 func (s *Server) ListenAndServe(addr string, network string) error {
-	if len(s.rejectedHosts) == 0 {
-		s.loadFilters()
+	if s.matcher == nil {
+		s.loadHosts()
 	}
 	s.server = &dns.Server{Addr: addr, Net: network, Handler: s}
 	return s.server.ListenAndServe()
