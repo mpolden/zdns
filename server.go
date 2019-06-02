@@ -1,4 +1,4 @@
-package dns
+package zdns
 
 import (
 	"fmt"
@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mpolden/zdns"
 	"github.com/mpolden/zdns/hosts"
 
 	"github.com/miekg/dns"
@@ -21,7 +20,7 @@ import (
 
 // A Server defines parameters for running a DNS server.
 type Server struct {
-	Config  zdns.Config
+	Config  Config
 	Logger  *log.Logger
 	mu      sync.RWMutex
 	server  *dns.Server
@@ -56,7 +55,7 @@ func readHosts(url *url.URL) (hosts.Hosts, error) {
 }
 
 // NewServer returns a new server configured according to config.
-func NewServer(config zdns.Config) (*Server, error) {
+func NewServer(config Config) (*Server, error) {
 	done := make(chan bool, 1)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig)
@@ -188,6 +187,8 @@ func (s *Server) reply(r *dns.Msg) *dns.Msg {
 		}
 	case "no-data":
 		// Nothing to do
+	case "hosts":
+		// TODO: Provide answer from hosts
 	}
 	// Pretend this is an recursive answer
 	m.RecursionAvailable = true

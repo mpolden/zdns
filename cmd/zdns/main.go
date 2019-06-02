@@ -7,7 +7,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"github.com/mpolden/zdns"
-	"github.com/mpolden/zdns/dns"
 )
 
 const (
@@ -44,7 +43,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	server, err := dns.NewServer(conf)
+	server, err := zdns.NewServer(conf)
 	if err != nil {
 		log.Fatal(err)
 	}
