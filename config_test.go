@@ -30,6 +30,7 @@ reject = false
 
 [[filters]]
 url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+timeout = "10s"
 reject = true
 `
 	r := strings.NewReader(text)
@@ -67,6 +68,7 @@ reject = true
 		{"Filter.RejectMode", conf.Filter.HijackMode, "zero"},
 		{"Filters[0].Source", conf.Filters[0].URL, "file:///home/foo/hosts-good"},
 		{"Filters[1].Source", conf.Filters[1].URL, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},
+		{"Filters[1].Timeout", conf.Filters[1].Timeout, "10s"},
 	}
 	for _, tt := range stringTests {
 		if tt.got != tt.want {

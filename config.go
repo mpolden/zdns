@@ -38,8 +38,10 @@ type FilterOptions struct {
 
 // A Filter specifies a source of DNS names and how they should be filtered.
 type Filter struct {
-	URL    string
-	Reject bool
+	URL     string
+	Reject  bool
+	Timeout string
+	timeout time.Duration
 }
 
 func (c *Config) load() error {
@@ -73,7 +75,7 @@ func (c *Config) load() error {
 	if c.Filter.refreshInterval < 0 {
 		return fmt.Errorf("refresh interval must be >= 0")
 	}
-	for _, f := range c.Filters {
+	for i, f := range c.Filters {
 		if f.URL == "" {
 			return fmt.Errorf("url must be set")
 		}
@@ -85,6 +87,16 @@ func (c *Config) load() error {
 		case "file", "http", "https":
 		default:
 			return fmt.Errorf("%s: invalid scheme: %s", f.URL, url.Scheme)
+		}
+		if url.Scheme == "file" && f.Timeout != "" {
+			return fmt.Errorf("%s: timeout cannot be set for %s url", f.URL, url.Scheme)
+		}
+		if c.Filters[i].Timeout == "" {
+			c.Filters[i].Timeout = "0"
+		}
+		c.Filters[i].timeout, err = time.ParseDuration(c.Filters[i].Timeout)
+		if err != nil {
+			return fmt.Errorf("%s: invalid timeout: %s", f.URL, f.Timeout)
 		}
 	}
 	for _, r := range c.Resolvers {
