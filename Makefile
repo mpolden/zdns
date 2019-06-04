@@ -15,6 +15,12 @@ golint: deps
 	fi
 	golint ./...
 
+errcheck: deps
+	errcheck ./... 2> /dev/null; if [ $$? -eq 127 ]; then \
+		GO111MODULE=off go get github.com/kisielk/errcheck; \
+		errcheck ./...; \
+	fi
+
 staticcheck: deps
 	staticcheck 2> /dev/null; if [ $$? -eq 127 ]; then \
 		GO111MODULE=off go get honnef.co/go/tools/cmd/staticcheck; \
@@ -24,7 +30,7 @@ staticcheck: deps
 check-fmt:
 	bash -c "diff --line-format='%L' <(echo -n) <(gofmt -d -s .)"
 
-lint: check-fmt vet golint
+lint: check-fmt vet golint errcheck
 
 install: deps
 	go install ./...

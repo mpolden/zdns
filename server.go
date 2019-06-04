@@ -81,8 +81,11 @@ func readHosts(name string) (hosts.Hosts, error) {
 	default:
 		return nil, fmt.Errorf("%s: invalid scheme: %s", url, url.Scheme)
 	}
-	defer rc.Close()
-	return hosts.Parse(rc)
+	hosts, err := hosts.Parse(rc)
+	if err1 := rc.Close(); err == nil {
+		err = err1
+	}
+	return hosts, err
 }
 
 func nonFqdn(s string) string {
@@ -112,7 +115,9 @@ func (s *Server) readSignal() {
 				s.loadHosts()
 			case syscall.SIGTERM, syscall.SIGINT:
 				s.logf("received signal %s: shutting down", sig)
-				s.Close()
+				if err := s.Close(); err != nil {
+					s.logf("close failed: %s", err)
+				}
 			default:
 				s.logf("received signal %s: ignoring", sig)
 			}

@@ -6,12 +6,18 @@ import (
 	"testing"
 )
 
-func tempFile(s string) (string, error) {
+func handleErr(t *testing.T, fn func() error) {
+	if err := fn(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func tempFile(t *testing.T, s string) (string, error) {
 	f, err := ioutil.TempFile("", "zdns")
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer handleErr(t, f.Close)
 	if err := ioutil.WriteFile(f.Name(), []byte(s), 0644); err != nil {
 		return "", err
 	}
@@ -29,11 +35,11 @@ timeout = "1s"
 [filter]
 hijack_mode = "zero"
 `
-	f, err := tempFile(conf)
+	f, err := tempFile(t, conf)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(f)
+	defer handleErr(t, func() error { return os.Remove(f) })
 	srv, err := newServer(nil, []string{name, f})
 	if err != nil {
 		t.Fatal(err)

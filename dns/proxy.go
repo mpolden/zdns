@@ -108,7 +108,7 @@ func (p *Proxy) Close() error {
 func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	reply := p.reply(r)
 	if reply != nil {
-		w.WriteMsg(reply)
+		_ = w.WriteMsg(reply) // TODO: Decide whether to handle write errors
 		return
 	}
 	for _, resolver := range p.resolvers {
@@ -116,7 +116,7 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if err != nil {
 			continue
 		}
-		w.WriteMsg(rr)
+		_ = w.WriteMsg(rr)
 		return
 	}
 	dns.HandleFailed(w, r)

@@ -27,22 +27,30 @@ const hostsFile2 = `
 192.0.2.6   badhost6
 `
 
-func httpHandler(response string) http.Handler {
+func handleErr(t *testing.T, fn func() error) {
+	if err := fn(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func httpHandler(t *testing.T, response string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(response))
+		if _, err := w.Write([]byte(response)); err != nil {
+			t.Fatal(err)
+		}
 	})
 }
 
-func httpServer(s string) *httptest.Server {
-	return httptest.NewServer(httpHandler(s))
+func httpServer(t *testing.T, s string) *httptest.Server {
+	return httptest.NewServer(httpHandler(t, s))
 }
 
-func tempFile(s string) (string, error) {
+func tempFile(t *testing.T, s string) (string, error) {
 	f, err := ioutil.TempFile("", "zdns")
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer handleErr(t, f.Close)
 	if err := ioutil.WriteFile(f.Name(), []byte(s), 0644); err != nil {
 		return "", err
 	}
@@ -50,14 +58,14 @@ func tempFile(s string) (string, error) {
 }
 
 func TestLoadHostsOnSignal(t *testing.T) {
-	httpSrv := httpServer(hostsFile1)
+	httpSrv := httpServer(t, hostsFile1)
 	defer httpSrv.Close()
 
-	f, err := tempFile(hostsFile2)
+	f, err := tempFile(t, hostsFile2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(f)
+	defer handleErr(t, func() error { return os.Remove(f) })
 
 	conf := Config{
 		Filter: FilterOptions{hijackMode: HijackZero},
@@ -70,7 +78,7 @@ func TestLoadHostsOnSignal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer handleErr(t, s.Close)
 	s.signal <- syscall.SIGHUP
 	ts := time.Now()
 	for s.matcher == nil {
@@ -82,14 +90,14 @@ func TestLoadHostsOnSignal(t *testing.T) {
 }
 
 func TestLoadHostsOnTick(t *testing.T) {
-	httpSrv := httpServer(hostsFile1)
+	httpSrv := httpServer(t, hostsFile1)
 	defer httpSrv.Close()
 
-	f, err := tempFile(hostsFile2)
+	f, err := tempFile(t, hostsFile2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(f)
+	defer handleErr(t, func() error { return os.Remove(f) })
 
 	conf := Config{
 		Filter: FilterOptions{
@@ -105,7 +113,7 @@ func TestLoadHostsOnTick(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer handleErr(t, s.Close)
 	ts := time.Now()
 	for s.matcher == nil {
 		time.Sleep(10 * time.Millisecond)
@@ -137,7 +145,8 @@ func TestHijack(t *testing.T) {
 		Config:  Config{Filter: FilterOptions{hijackMode: HijackZero}},
 		matcher: hosts.NewMatcher(h),
 	}
-	defer s.Close()
+	defer handleErr(t, s.Close)
+
 	var tests = []struct {
 		rtype uint16
 		rname string
