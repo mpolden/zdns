@@ -46,7 +46,7 @@ type Filter struct {
 
 func (c *Config) load() error {
 	if len(c.Listen) == 0 {
-		return fmt.Errorf("invalid listening address: %q", c.Listen)
+		return fmt.Errorf("invalid listening address: %s", c.Listen)
 	}
 	if len(c.Protocol) == 0 {
 		c.Protocol = "udp"
@@ -55,14 +55,14 @@ func (c *Config) load() error {
 		return fmt.Errorf("cache size must be >= 0")
 	}
 	switch c.Filter.HijackMode {
-	case "zero":
+	case "", "zero":
 		c.Filter.hijackMode = HijackZero
 	case "empty":
 		c.Filter.hijackMode = HijackEmpty
 	case "hosts":
 		c.Filter.hijackMode = HijackHosts
 	default:
-		return fmt.Errorf("invalid reject mode: %q", c.Filter.HijackMode)
+		return fmt.Errorf("invalid hijack mode: %s", c.Filter.HijackMode)
 	}
 	if c.Filter.RefreshInterval == "" {
 		c.Filter.RefreshInterval = "0"
@@ -86,7 +86,7 @@ func (c *Config) load() error {
 		switch url.Scheme {
 		case "file", "http", "https":
 		default:
-			return fmt.Errorf("%s: invalid scheme: %s", f.URL, url.Scheme)
+			return fmt.Errorf("%s: unsupported scheme: %s", f.URL, url.Scheme)
 		}
 		if url.Scheme == "file" && f.Timeout != "" {
 			return fmt.Errorf("%s: timeout cannot be set for %s url", f.URL, url.Scheme)
@@ -101,7 +101,7 @@ func (c *Config) load() error {
 	}
 	for _, r := range c.Resolvers {
 		if _, _, err := net.SplitHostPort(r); err != nil {
-			return fmt.Errorf("%s: %s", r, err)
+			return fmt.Errorf("invalid resolver: %s", err)
 		}
 	}
 	if c.Resolver.Protocol == "udp" {
