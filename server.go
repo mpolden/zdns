@@ -29,7 +29,7 @@ const (
 // A Server defines parameters for running a DNS server.
 type Server struct {
 	Config  Config
-	Logger  *log.Logger
+	logger  *log.Logger
 	proxy   *dns.Proxy
 	matcher *hosts.Matcher
 	ticker  *time.Ticker
@@ -40,20 +40,28 @@ type Server struct {
 }
 
 // NewServer returns a new server configured according to config.
-func NewServer(config Config) (*Server, error) {
+func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	server := &Server{
 		Config: config,
 		signal: make(chan os.Signal, 1),
 		done:   make(chan bool, 1),
+		logger: logger,
 	}
+
+	// Start goroutines
 	if config.Filter.refreshInterval > 0 {
 		server.ticker = time.NewTicker(config.Filter.refreshInterval)
 		go server.reloadHosts()
 	}
 	signal.Notify(server.signal)
 	go server.readSignal()
-	proxy := dns.NewProxy(server.hijack, config.Resolvers, config.Resolver.timeout)
-	server.proxy = proxy
+
+	// Configure proxy
+	server.proxy = dns.NewProxy(server.hijack, config.Resolvers, config.Resolver.timeout)
+
+	// Load initial hosts
+	server.loadHosts()
+
 	server.started = true
 	return server, nil
 }
@@ -97,8 +105,8 @@ func nonFqdn(s string) string {
 }
 
 func (s *Server) logf(format string, v ...interface{}) {
-	if s.Logger != nil {
-		s.Logger.Printf(format, v...)
+	if s.logger != nil {
+		s.logger.Printf(format, v...)
 	}
 }
 
@@ -177,7 +185,6 @@ func (s *Server) loadHosts() {
 func (s *Server) Close() error {
 	if !s.started {
 		return nil
-
 	}
 	s.done <- true
 	s.done <- true

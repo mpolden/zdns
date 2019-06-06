@@ -35,11 +35,10 @@ func newServer(log *log.Logger, args []string) (*zdns.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	server, err := zdns.NewServer(conf)
+	server, err := zdns.NewServer(log, conf)
 	if err != nil {
 		return nil, err
 	}
-	server.Logger = log
 	return server, nil
 }
 

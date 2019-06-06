@@ -57,31 +57,62 @@ func tempFile(t *testing.T, s string) (string, error) {
 	return f.Name(), nil
 }
 
-func TestLoadHostsOnSignal(t *testing.T) {
-	httpSrv := httpServer(t, hostsFile1)
-	defer httpSrv.Close()
-
-	f, err := tempFile(t, hostsFile2)
+func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
+	var (
+		httpSrv *httptest.Server
+		srv     *Server
+		file    string
+		err     error
+	)
+	cleanup := func() {
+		if httpSrv != nil {
+			httpSrv.Close()
+		}
+		if file != "" {
+			if err := os.Remove(file); err != nil {
+				t.Error(err)
+			}
+		}
+		if srv != nil {
+			if err := srv.Close(); err != nil {
+				t.Error(err)
+			}
+		}
+	}
+	httpSrv = httpServer(t, hostsFile1)
+	file, err = tempFile(t, hostsFile2)
 	if err != nil {
+		defer cleanup()
 		t.Fatal(err)
 	}
-	defer handleErr(t, func() error { return os.Remove(f) })
-
 	conf := Config{
-		Filter: FilterOptions{hijackMode: HijackZero},
+		Filter: FilterOptions{
+			hijackMode:      HijackZero,
+			refreshInterval: refreshInterval,
+		},
 		Filters: []Filter{
 			{URL: httpSrv.URL, Reject: true},
-			{URL: f, Reject: true},
+			{URL: file, Reject: true},
 		},
 	}
-	s, err := NewServer(conf)
+	srv, err = NewServer(nil, conf)
 	if err != nil {
+		defer cleanup()
 		t.Fatal(err)
 	}
-	defer handleErr(t, s.Close)
+	return srv, cleanup
+}
+
+func TestLoadHostsOnSignal(t *testing.T) {
+	s, cleanup := testServer(t, 0)
+	defer cleanup()
+	oldMatcher := s.matcher
+	if oldMatcher == nil {
+		t.Fatal("expected matcher to be initialized")
+	}
 	s.signal <- syscall.SIGHUP
 	ts := time.Now()
-	for s.matcher == nil {
+	for s.matcher == oldMatcher {
 		time.Sleep(10 * time.Millisecond)
 		if time.Since(ts) > 2*time.Second {
 			t.Fatal("timed out waiting hosts to load")
@@ -90,32 +121,14 @@ func TestLoadHostsOnSignal(t *testing.T) {
 }
 
 func TestLoadHostsOnTick(t *testing.T) {
-	httpSrv := httpServer(t, hostsFile1)
-	defer httpSrv.Close()
-
-	f, err := tempFile(t, hostsFile2)
-	if err != nil {
-		t.Fatal(err)
+	s, cleanup := testServer(t, 10*time.Millisecond)
+	defer cleanup()
+	oldMatcher := s.matcher
+	if oldMatcher == nil {
+		t.Fatal("expected matcher to be initialized")
 	}
-	defer handleErr(t, func() error { return os.Remove(f) })
-
-	conf := Config{
-		Filter: FilterOptions{
-			hijackMode:      HijackZero,
-			refreshInterval: time.Duration(10 * time.Millisecond),
-		},
-		Filters: []Filter{
-			{URL: httpSrv.URL, Reject: true},
-			{URL: f, Reject: true},
-		},
-	}
-	s, err := NewServer(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer handleErr(t, s.Close)
 	ts := time.Now()
-	for s.matcher == nil {
+	for s.matcher == oldMatcher {
 		time.Sleep(10 * time.Millisecond)
 		if time.Since(ts) > 2*time.Second {
 			t.Fatal("timed out waiting hosts to load")
