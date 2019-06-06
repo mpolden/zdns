@@ -31,7 +31,11 @@ type Proxy struct {
 	handler   Handler
 	resolvers []string
 	server    *dns.Server
-	client    *dns.Client
+	client    client
+}
+
+type client interface {
+	Exchange(*dns.Msg, string) (*dns.Msg, time.Duration, error)
 }
 
 // NewProxy creates a new DNS proxy.
@@ -79,7 +83,7 @@ func (r *Reply) String() string {
 }
 
 func (p *Proxy) reply(r *dns.Msg) *dns.Msg {
-	if len(r.Question) != 1 {
+	if p.handler == nil || len(r.Question) != 1 {
 		return nil
 	}
 	reply := p.handler(&Request{
@@ -111,10 +115,14 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		_ = w.WriteMsg(reply) // TODO: Decide whether to handle write errors
 		return
 	}
-	for _, resolver := range p.resolvers {
+	for i, resolver := range p.resolvers {
 		rr, _, err := p.client.Exchange(r, resolver)
 		if err != nil {
-			continue
+			if i == len(p.resolvers)-1 {
+				break
+			} else {
+				continue
+			}
 		}
 		_ = w.WriteMsg(rr)
 		return

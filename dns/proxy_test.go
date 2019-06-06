@@ -1,9 +1,11 @@
 package dns
 
 import (
+	"fmt"
 	"net"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/miekg/dns"
 )
@@ -23,6 +25,24 @@ func (w *dnsWriter) WriteMsg(m *dns.Msg) error {
 	return nil
 }
 
+type resolver struct {
+	answer *dns.Msg
+	fail   bool
+}
+
+type testClient map[string]*resolver
+
+func (c testClient) Exchange(m *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
+	r, ok := c[addr]
+	if !ok {
+		panic("no such resolver: " + addr)
+	}
+	if r.fail {
+		return nil, 0, fmt.Errorf("%s SERVFAIL", addr)
+	}
+	return r.answer, time.Minute * 5, nil
+}
+
 func assertRR(t *testing.T, p *Proxy, rtype uint16, qname, answer string) {
 	m := dns.Msg{}
 	m.Id = dns.Id()
@@ -32,30 +52,48 @@ func assertRR(t *testing.T, p *Proxy, rtype uint16, qname, answer string) {
 	w := &dnsWriter{}
 	p.ServeDNS(w, &m)
 
+	rtypeString := dns.TypeToString[rtype]
 	answers := w.lastReply.Answer
-	if len(answers) != 1 {
-		t.Fatalf("want 1 answer, got %d", len(answers))
+	if got, want := len(answers), 1; got != want {
+		t.Fatalf("len(msg.Answer) = %d, want %d for %s %s", got, want, rtypeString, qname)
 	}
-	a := answers[0]
+	ans := answers[0]
 
 	want := net.ParseIP(answer)
 	var got net.IP
 	switch rtype {
 	case dns.TypeA:
-		rr, ok := a.(*dns.A)
+		rr, ok := ans.(*dns.A)
 		if !ok {
-			t.Errorf("want type = %s, got %s", dns.TypeToString[dns.TypeA], dns.TypeToString[rr.Header().Rrtype])
+			t.Errorf("type = %q, want %q for %s %s", dns.TypeToString[dns.TypeA], dns.TypeToString[rr.Header().Rrtype], rtypeString, qname)
 		}
 		got = rr.A
 	case dns.TypeAAAA:
-		rr, ok := a.(*dns.AAAA)
+		rr, ok := ans.(*dns.AAAA)
 		if !ok {
-			t.Errorf("want type = %s, got %s", dns.TypeToString[dns.TypeA], dns.TypeToString[rr.Header().Rrtype])
+			t.Errorf("type = %q, want %q for %s %s", dns.TypeToString[dns.TypeA], dns.TypeToString[rr.Header().Rrtype], rtypeString, qname)
 		}
 		got = rr.AAAA
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("want %s, got %s", want, got)
+		t.Errorf("IP = %s, want %s", got, want)
+	}
+}
+
+func assertFailure(t *testing.T, p *Proxy, rtype uint16, qname string) {
+	m := dns.Msg{}
+	m.Id = dns.Id()
+	m.RecursionDesired = true
+	m.SetQuestion(dns.Fqdn(qname), rtype)
+
+	w := &dnsWriter{}
+	p.ServeDNS(w, &m)
+
+	if got, want := len(w.lastReply.Answer), 0; got != want {
+		t.Errorf("len(msg.Answer) = %d, want %d for %s %s", got, want, dns.TypeToString[rtype], qname)
+	}
+	if got, want := w.lastReply.MsgHdr.Rcode, dns.RcodeServerFailure; got != want {
+		t.Errorf("MsgHdr.Rcode = %s, want %s for %s %s", dns.RcodeToString[got], dns.RcodeToString[want], dns.TypeToString[rtype], qname)
 	}
 }
 
@@ -72,6 +110,31 @@ func TestProxy(t *testing.T) {
 	p := NewProxy(h, nil, 0)
 	assertRR(t, p, TypeA, "badhost1", "0.0.0.0")
 	assertRR(t, p, TypeAAAA, "badhost1", "::")
+}
+
+func TestProxyWithResolvers(t *testing.T) {
+	p := NewProxy(nil, []string{"resolver1"}, 0)
+	client := make(testClient)
+	p.client = client
+
+	// First and only resolver responds succesfully
+	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
+	client["resolver1"] = &resolver{answer: &dns.Msg{Answer: reply.rr}}
+	assertRR(t, p, TypeA, "host1", "192.0.2.1")
+
+	// First and only resolver fails
+	client["resolver1"].fail = true
+	assertFailure(t, p, TypeA, "host1")
+
+	// First resolver fails, but second succeeds
+	reply = ReplyA("host1", net.ParseIP("192.0.2.2"))
+	p.resolvers = []string{"resolver1", "resolver2"}
+	client["resolver2"] = &resolver{answer: &dns.Msg{Answer: reply.rr}}
+	assertRR(t, p, TypeA, "host1", "192.0.2.2")
+
+	// All resolvers fail
+	client["resolver2"].fail = true
+	assertFailure(t, p, TypeA, "host1")
 }
 
 func TestReplyString(t *testing.T) {
