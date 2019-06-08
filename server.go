@@ -49,8 +49,8 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	}
 
 	// Start goroutines
-	if config.Filter.refreshInterval > 0 {
-		server.ticker = time.NewTicker(config.Filter.refreshInterval)
+	if t := config.DNS.refreshInterval; t > 0 {
+		server.ticker = time.NewTicker(t)
 		go server.reloadHosts()
 	}
 	signal.Notify(server.signal)
@@ -59,7 +59,7 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	// Configure proxy
 	server.proxy = dns.NewProxy(logger, config.Resolver.Protocol, config.Resolver.timeout)
 	server.proxy.Handler = server.hijack
-	server.proxy.Resolvers = config.Resolvers
+	server.proxy.Resolvers = config.DNS.Resolvers
 
 	// Load initial hosts
 	server.loadHosts()
@@ -149,19 +149,19 @@ func (s *Server) reloadHosts() {
 
 func (s *Server) loadHosts() {
 	hs := make(hosts.Hosts)
-	for _, f := range s.Config.Filters {
+	for _, h := range s.Config.Hosts {
 		src := "inline hosts"
-		hs1 := f.hosts
-		if f.URL != "" {
-			src = f.URL
+		hs1 := h.hosts
+		if h.URL != "" {
+			src = h.URL
 			var err error
-			hs1, err = readHosts(f.URL)
+			hs1, err = readHosts(h.URL)
 			if err != nil {
-				s.logf("failed to read hosts from %s: %s", f.URL, err)
+				s.logf("failed to read hosts from %s: %s", h.URL, err)
 				continue
 			}
 		}
-		if f.Reject {
+		if h.Hijack {
 			for name, ipAddrs := range hs1 {
 				hs[name] = ipAddrs
 			}
@@ -205,7 +205,7 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 	if !ok {
 		return nil // No match
 	}
-	switch s.Config.Filter.hijackMode {
+	switch s.Config.DNS.hijackMode {
 	case HijackZero:
 		switch r.Type {
 		case dns.TypeA:
@@ -237,5 +237,5 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 
 // ListenAndServe starts a server on configured address and protocol.
 func (s *Server) ListenAndServe() error {
-	return s.proxy.ListenAndServe(s.Config.Listen, s.Config.Protocol)
+	return s.proxy.ListenAndServe(s.Config.DNS.Listen, s.Config.DNS.Protocol)
 }

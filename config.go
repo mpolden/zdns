@@ -14,112 +14,112 @@ import (
 
 // Config specifies is the zdns configuration parameters.
 type Config struct {
-	Listen    string
-	Protocol  string `toml:"listen_protocol"`
-	CacheSize int    `toml:"cache_size"`
-	Filter    FilterOptions
-	Filters   []Filter
-	Resolver  ResolverOptions
-	Resolvers []string
+	DNS      DNSOptions
+	Resolver ResolverOptions
+	Hosts    []Hosts
 }
 
-// ResolverOptions controlers the behaviour of resolvers.
+// DNSOptions controlers the behaviour of the DNS server.
+type DNSOptions struct {
+	Listen          string
+	Protocol        string `toml:"listen_protocol"`
+	CacheSize       int    `toml:"cache_size"`
+	HijackMode      string `toml:"hijack_mode"`
+	hijackMode      int
+	RefreshInterval string `toml:"refresh_interval"`
+	refreshInterval time.Duration
+	Resolvers       []string
+}
+
+// ResolverOptions controls the behaviour of resolvers.
 type ResolverOptions struct {
 	Protocol string `toml:"protocol"`
 	Timeout  string `toml:"timeout"`
 	timeout  time.Duration
 }
 
-// FilterOptions controls the behaviour of configured filters.
-type FilterOptions struct {
-	HijackMode      string `toml:"hijack_mode"`
-	hijackMode      int
-	RefreshInterval string `toml:"refresh_interval"`
-	refreshInterval time.Duration
-}
-
-// A Filter specifies a source of DNS names and how they should be filtered.
-type Filter struct {
+// Hosts controls how a hosts file should be retrieved.
+type Hosts struct {
 	URL     string
-	Hosts   []string
+	Hosts   []string `toml:"entries"`
 	hosts   hosts.Hosts
-	Reject  bool
+	Hijack  bool
 	Timeout string
 	timeout time.Duration
 }
 
 func (c *Config) load() error {
-	if c.Listen == "" {
-		return fmt.Errorf("invalid listening address: %s", c.Listen)
+	if c.DNS.Listen == "" {
+		return fmt.Errorf("invalid listening address: %s", c.DNS.Listen)
 	}
-	if c.Protocol == "" {
-		c.Protocol = "udp"
+	if c.DNS.Protocol == "" {
+		c.DNS.Protocol = "udp"
 	}
-	if c.Protocol != "udp" {
-		return fmt.Errorf("unsupported protocol: %s", c.Protocol)
+	if c.DNS.Protocol != "udp" {
+		return fmt.Errorf("unsupported protocol: %s", c.DNS.Protocol)
 	}
-	if c.CacheSize < 0 {
+	if c.DNS.CacheSize < 0 {
 		return fmt.Errorf("cache size must be >= 0")
 	}
-	switch c.Filter.HijackMode {
+	switch c.DNS.HijackMode {
 	case "", "zero":
-		c.Filter.hijackMode = HijackZero
+		c.DNS.hijackMode = HijackZero
 	case "empty":
-		c.Filter.hijackMode = HijackEmpty
+		c.DNS.hijackMode = HijackEmpty
 	case "hosts":
-		c.Filter.hijackMode = HijackHosts
+		c.DNS.hijackMode = HijackHosts
 	default:
-		return fmt.Errorf("invalid hijack mode: %s", c.Filter.HijackMode)
+		return fmt.Errorf("invalid hijack mode: %s", c.DNS.HijackMode)
 	}
-	if c.Filter.RefreshInterval == "" {
-		c.Filter.RefreshInterval = "0"
+	if c.DNS.RefreshInterval == "" {
+		c.DNS.RefreshInterval = "0"
 	}
 	var err error
-	c.Filter.refreshInterval, err = time.ParseDuration(c.Filter.RefreshInterval)
+	c.DNS.refreshInterval, err = time.ParseDuration(c.DNS.RefreshInterval)
 	if err != nil {
 		return fmt.Errorf("invalid refresh interval: %s", err)
 	}
-	if c.Filter.refreshInterval < 0 {
+	if c.DNS.refreshInterval < 0 {
 		return fmt.Errorf("refresh interval must be >= 0")
 	}
-	for i, f := range c.Filters {
-		if (f.URL == "") == (f.Hosts == nil) {
+	for i, hs := range c.Hosts {
+		if (hs.URL == "") == (hs.Hosts == nil) {
 			return fmt.Errorf("exactly one of url or hosts must be set")
 		}
-		if f.URL != "" {
-			url, err := url.Parse(f.URL)
+		if hs.URL != "" {
+			url, err := url.Parse(hs.URL)
 			if err != nil {
-				return fmt.Errorf("%s: invalid url: %s", f.URL, err)
+				return fmt.Errorf("%s: invalid url: %s", hs.URL, err)
 			}
 			switch url.Scheme {
 			case "file", "http", "https":
 			default:
-				return fmt.Errorf("%s: unsupported scheme: %s", f.URL, url.Scheme)
+				return fmt.Errorf("%s: unsupported scheme: %s", hs.URL, url.Scheme)
 			}
-			if url.Scheme == "file" && f.Timeout != "" {
-				return fmt.Errorf("%s: timeout cannot be set for %s url", f.URL, url.Scheme)
+			if url.Scheme == "file" && hs.Timeout != "" {
+				return fmt.Errorf("%s: timeout cannot be set for %s url", hs.URL, url.Scheme)
 			}
-			if c.Filters[i].Timeout == "" {
-				c.Filters[i].Timeout = "0"
+			if c.Hosts[i].Timeout == "" {
+				c.Hosts[i].Timeout = "0"
 			}
-			c.Filters[i].timeout, err = time.ParseDuration(c.Filters[i].Timeout)
+			c.Hosts[i].timeout, err = time.ParseDuration(c.Hosts[i].Timeout)
 			if err != nil {
-				return fmt.Errorf("%s: invalid timeout: %s", f.URL, f.Timeout)
+				return fmt.Errorf("%s: invalid timeout: %s", hs.URL, hs.Timeout)
 			}
 		}
-		if f.Hosts != nil {
-			if f.Timeout != "" {
-				return fmt.Errorf("%s: timeout cannot be set for inline hosts", f.Hosts)
+		if hs.Hosts != nil {
+			if hs.Timeout != "" {
+				return fmt.Errorf("%s: timeout cannot be set for inline hosts", hs.Hosts)
 			}
 			var err error
-			r := strings.NewReader(strings.Join(f.Hosts, "\n"))
-			c.Filters[i].hosts, err = hosts.Parse(r)
+			r := strings.NewReader(strings.Join(hs.Hosts, "\n"))
+			c.Hosts[i].hosts, err = hosts.Parse(r)
 			if err != nil {
 				return err
 			}
 		}
 	}
-	for _, r := range c.Resolvers {
+	for _, r := range c.DNS.Resolvers {
 		if _, _, err := net.SplitHostPort(r); err != nil {
 			return fmt.Errorf("invalid resolver: %s", err)
 		}

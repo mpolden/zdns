@@ -87,15 +87,14 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 		t.Fatal(err)
 	}
 	conf := Config{
-		Listen:   "0.0.0.0:53",
-		Resolver: ResolverOptions{Timeout: "0"},
-		Filter: FilterOptions{
+		DNS: DNSOptions{Listen: "0.0.0.0:53",
 			hijackMode:      HijackZero,
 			refreshInterval: refreshInterval,
 		},
-		Filters: []Filter{
-			{URL: httpSrv.URL, Reject: true},
-			{URL: "file://" + file, Reject: true},
+		Resolver: ResolverOptions{Timeout: "0"},
+		Hosts: []Hosts{
+			{URL: httpSrv.URL, Hijack: true},
+			{URL: "file://" + file, Hijack: true},
 			{Hosts: []string{"192.0.2.5 badhost5"}},
 		},
 	}
@@ -177,7 +176,7 @@ func TestNonFqdn(t *testing.T) {
 
 func TestHijack(t *testing.T) {
 	s := &Server{
-		Config: Config{Filter: FilterOptions{hijackMode: HijackZero}},
+		Config: Config{},
 		hosts: hosts.Hosts{
 			"badhost1": []net.IPAddr{
 				{IP: net.ParseIP("192.0.2.1")},
@@ -204,7 +203,7 @@ func TestHijack(t *testing.T) {
 		{dns.TypeAAAA, "badhost1", HijackHosts, "badhost1\t3600\tIN\tAAAA\t2001:db8::1"},
 	}
 	for i, tt := range tests {
-		s.Config.Filter.hijackMode = tt.mode
+		s.Config.DNS.hijackMode = tt.mode
 		req := &dns.Request{Type: tt.rtype, Name: tt.rname}
 		reply := s.hijack(&dns.Request{Type: tt.rtype, Name: tt.rname})
 		if reply == nil && tt.out == "" {

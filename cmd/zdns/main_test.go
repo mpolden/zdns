@@ -26,6 +26,7 @@ func tempFile(t *testing.T, s string) (string, error) {
 
 func TestMain(t *testing.T) {
 	conf := `
+[dns]
 listen = "0.0.0.0:0"
 
 [resolver]

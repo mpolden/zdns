@@ -9,6 +9,7 @@ import (
 
 func TestConfig(t *testing.T) {
 	text := `
+[dns]
 listen = "0.0.0.0:53"
 listen_protocol = "udp"
 cache_size = 2048
@@ -16,30 +17,28 @@ resolvers = [
   "192.0.2.1:53",
   "192.0.2.2:53",
 ]
+hijack_mode = "zero" # or: empty, hosts
+refresh_interval = "48h"
 
 [resolver]
 # protocol = "tcp-tls" # or: "", "udp", "tcp"
 timeout = "1s"
 
-[filter]
-hijack_mode = "zero" # or: empty, hosts
-refresh_interval = "48h"
-
-[[filters]]
+[[hosts]]
 url = "file:///home/foo/hosts-good"
-reject = false
+hijack = false
 
-[[filters]]
+[[hosts]]
 url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
 timeout = "10s"
-reject = true
+hijack = true
 
-[[filters]]
-hosts = [
+[[hosts]]
+entries = [
   "0.0.0.0 goodhost1",
   "0.0.0.0 goodhost2",
 ]
-reject = false
+hijack = false
 `
 	r := strings.NewReader(text)
 	conf, err := ReadConfig(r)
@@ -52,11 +51,11 @@ reject = false
 		got   int
 		want  int
 	}{
-		{"CacheSize", conf.CacheSize, 2048},
-		{"len(Resolvers)", len(conf.Resolvers), 2},
+		{"DNS.CacheSize", conf.DNS.CacheSize, 2048},
+		{"len(DNS.Resolvers)", len(conf.DNS.Resolvers), 2},
 		{"Resolver.Timeout", int(conf.Resolver.timeout), int(time.Second)},
-		{"Filter.RefreshInterval", int(conf.Filter.refreshInterval), int(48 * time.Hour)},
-		{"len(Filters)", len(conf.Filters), 3},
+		{"DNS.RefreshInterval", int(conf.DNS.refreshInterval), int(48 * time.Hour)},
+		{"len(Hosts)", len(conf.Hosts), 3},
 	}
 	for i, tt := range intTests {
 		if tt.got != tt.want {
@@ -69,16 +68,16 @@ reject = false
 		got   string
 		want  string
 	}{
-		{"Listen", conf.Listen, "0.0.0.0:53"},
-		{"Protocol", conf.Protocol, "udp"},
+		{"DNS.Listen", conf.DNS.Listen, "0.0.0.0:53"},
+		{"DNS.Protocol", conf.DNS.Protocol, "udp"},
+		{"DNS.Resolvers[0]", conf.DNS.Resolvers[0], "192.0.2.1:53"},
+		{"DNS.Resolvers[1]", conf.DNS.Resolvers[1], "192.0.2.2:53"},
+		{"DNS.HijackMode", conf.DNS.HijackMode, "zero"},
 		{"Resolver.Protocol", conf.Resolver.Protocol, "tcp-tls"},
-		{"Resolver.Hosts[0]", conf.Resolvers[0], "192.0.2.1:53"},
-		{"Resolver.Hosts[1]", conf.Resolvers[1], "192.0.2.2:53"},
-		{"Filter.RejectMode", conf.Filter.HijackMode, "zero"},
-		{"Filters[0].Source", conf.Filters[0].URL, "file:///home/foo/hosts-good"},
-		{"Filters[1].Source", conf.Filters[1].URL, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},
-		{"Filters[1].Timeout", conf.Filters[1].Timeout, "10s"},
-		{"Filters[2].hosts", fmt.Sprintf("%+v", conf.Filters[2].hosts), "map[goodhost1:[{IP:0.0.0.0 Zone:}] goodhost2:[{IP:0.0.0.0 Zone:}]]"},
+		{"Hosts[0].Source", conf.Hosts[0].URL, "file:///home/foo/hosts-good"},
+		{"Hosts[1].Source", conf.Hosts[1].URL, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},
+		{"Hosts[1].Timeout", conf.Hosts[1].Timeout, "10s"},
+		{"Hosts[2].hosts", fmt.Sprintf("%+v", conf.Hosts[2].hosts), "map[goodhost1:[{IP:0.0.0.0 Zone:}] goodhost2:[{IP:0.0.0.0 Zone:}]]"},
 	}
 	for i, tt := range stringTests {
 		if tt.got != tt.want {
@@ -91,8 +90,8 @@ reject = false
 		got   bool
 		want  bool
 	}{
-		{"Filters[0].Reject", conf.Filters[0].Reject, false},
-		{"Filters[1].Reject", conf.Filters[1].Reject, true},
+		{"Hosts[0].Hijack", conf.Hosts[0].Hijack, false},
+		{"Hosts[1].Hijack", conf.Hosts[1].Hijack, true},
 	}
 	for i, tt := range boolTests {
 		if tt.got != tt.want {
@@ -102,18 +101,15 @@ reject = false
 }
 
 func TestConfigErrors(t *testing.T) {
-	baseConf := "listen = \"0.0.0.0:53\"\n"
+	baseConf := "[dns]\nlisten = \"0.0.0.0:53\"\n"
 	conf1 := baseConf + "cache_size = -1"
 	conf2 := baseConf + `
-[filter]
 hijack_mode = "foo"
 `
 	conf3 := baseConf + `
-[filter]
 refresh_interval = "foo"
 `
 	conf4 := baseConf + `
-[filter]
 refresh_interval = "-1h"
 `
 	conf5 := baseConf + `
@@ -132,22 +128,22 @@ timeout = "foo"
 timeout = "-1s"
 `
 	conf9 := baseConf + `
-[[filters]]
+[[hosts]]
 url = ":foo"
 `
 	conf10 := baseConf + `
-[[filters]]
+[[hosts]]
 url = "foo://bar"
 `
 	conf11 := baseConf + `
-[[filters]]
+[[hosts]]
 url = "file:///tmp/foo"
 timeout = "1s"
 `
 
 	conf12 := baseConf + `
-[[filters]]
-hosts = ["0.0.0.0 host1"]
+[[hosts]]
+entries = ["0.0.0.0 host1"]
 timeout = "1s"
 `
 	var tests = []struct {
