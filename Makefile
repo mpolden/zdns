@@ -1,36 +1,28 @@
 all: lint test install
 
-deps:
-	go get ./...
-
-test: deps
+test:
 	go test ./...
 
-vet: deps
+vet:
 	go vet ./...
 
-golint: deps
-	golint 2> /dev/null; if [ $$? -eq 127 ]; then \
-		GO111MODULE=off go get golang.org/x/lint/golint; \
-	fi
+golint: install-tools
 	golint ./...
 
-errcheck: deps
-	errcheck ./... 2> /dev/null; if [ $$? -eq 127 ]; then \
-		GO111MODULE=off go get github.com/kisielk/errcheck; \
-		errcheck ./...; \
-	fi
+errcheck: install-tools
+	errcheck ./...
 
-staticcheck: deps
-	staticcheck 2> /dev/null; if [ $$? -eq 127 ]; then \
-		GO111MODULE=off go get honnef.co/go/tools/cmd/staticcheck; \
-	fi
+staticcheck: install-tools
 	staticcheck ./...
 
-check-fmt:
+fmt:
 	bash -c "diff --line-format='%L' <(echo -n) <(gofmt -d -s .)"
 
-lint: check-fmt vet golint errcheck
+lint: fmt vet golint errcheck staticcheck
 
-install: deps
+install-tools:
+	go list -tags tools -f '{{range $$i := .Imports}}{{printf "%s\n" $$i}}{{end}}' | xargs go install
+
+
+install:
 	go install ./...
