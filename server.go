@@ -29,9 +29,9 @@ const (
 // A Server defines parameters for running a DNS server.
 type Server struct {
 	Config  Config
+	hosts   hosts.Hosts
 	logger  *log.Logger
 	proxy   *dns.Proxy
-	matcher *hosts.Matcher
 	ticker  *time.Ticker
 	done    chan bool
 	signal  chan os.Signal
@@ -146,39 +146,41 @@ func (s *Server) reloadHosts() {
 }
 
 func (s *Server) loadHosts() {
-	var hs []hosts.Hosts
-	var size int
+	hs := make(hosts.Hosts)
 	for _, f := range s.Config.Filters {
-		h, err := readHosts(f.URL)
-		if err != nil {
-			s.logf("failed to read hosts from %s: %s", f.URL, err)
-			continue
+		src := "inline hosts"
+		hs1 := f.hosts
+		if f.URL != "" {
+			src = f.URL
+			var err error
+			hs1, err = readHosts(f.URL)
+			if err != nil {
+				s.logf("failed to read hosts from %s: %s", f.URL, err)
+				continue
+			}
 		}
 		if f.Reject {
-			hs = append(hs, h)
-			s.logf("loaded %d hosts from %s", len(h), f.URL)
-			size += len(h)
+			for name, ipAddrs := range hs1 {
+				hs[name] = ipAddrs
+			}
+			s.logf("loaded %d hosts from %s", len(hs1), src)
 		} else {
-			var removed int
-			for hostToRemove := range h {
-				for _, h := range hs {
-					if _, ok := h.Get(hostToRemove); ok {
-						removed++
-						h.Del(hostToRemove)
-					}
+			removed := 0
+			for hostToRemove := range hs1 {
+				if _, ok := hs.Get(hostToRemove); ok {
+					removed++
+					hs.Del(hostToRemove)
 				}
 			}
-			size -= removed
 			if removed > 0 {
-				s.logf("removed %d hosts from %s", len(h), f.URL)
+				s.logf("removed %d hosts from %s", removed, src)
 			}
 		}
 	}
-	m := hosts.NewMatcher(hs...)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.matcher = m
-	s.logf("loaded %d hosts in total", size)
+	s.hosts = hs
+	s.logf("loaded %d hosts in total", len(hs))
 }
 
 // Close terminates all active operations and shuts down the DNS server.
@@ -197,7 +199,7 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	ipAddrs, ok := s.matcher.Match(nonFqdn(r.Name))
+	ipAddrs, ok := s.hosts.Get(nonFqdn(r.Name))
 	if !ok {
 		return nil // No match
 	}

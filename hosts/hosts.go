@@ -92,36 +92,3 @@ func (p *Parser) Parse(r io.Reader) (Hosts, error) {
 	}
 	return entries, nil
 }
-
-// A Matcher matches hosts entries.
-type Matcher struct {
-	hosts Hosts
-	next  *Matcher
-}
-
-// Match returns the IP addresses matching name.
-func (m *Matcher) Match(name string) ([]net.IPAddr, bool) {
-	for m != nil {
-		if m.hosts != nil {
-			if ipAddrs, ok := m.hosts.Get(name); ok {
-				return ipAddrs, ok
-			}
-		}
-		m = m.next
-	}
-	return nil, false
-}
-
-// NewMatcher creates a matcher for given hosts.
-func NewMatcher(hosts ...Hosts) *Matcher {
-	matcher := &Matcher{}
-	m := matcher
-	for i, h := range hosts {
-		m.hosts = h
-		if i < len(hosts)-1 {
-			m.next = &Matcher{}
-		}
-		m = m.next
-	}
-	return matcher
-}

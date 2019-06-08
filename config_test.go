@@ -1,6 +1,7 @@
 package zdns
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -12,8 +13,8 @@ listen = "0.0.0.0:53"
 protocol = "udp"
 cache_size = 2048
 resolvers = [
-  "1.1.1.1:53",
-  "1.0.0.1:53",
+  "192.0.2.1:53",
+  "192.0.2.2:53",
 ]
 
 [resolver]
@@ -32,6 +33,13 @@ reject = false
 url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
 timeout = "10s"
 reject = true
+
+[[filters]]
+hosts = [
+  "0.0.0.0 goodhost1",
+  "0.0.0.0 goodhost2",
+]
+reject = false
 `
 	r := strings.NewReader(text)
 	conf, err := ReadConfig(r)
@@ -48,7 +56,7 @@ reject = true
 		{"len(Resolvers)", len(conf.Resolvers), 2},
 		{"Resolver.Timeout", int(conf.Resolver.timeout), int(time.Second)},
 		{"Filter.RefreshInterval", int(conf.Filter.refreshInterval), int(48 * time.Hour)},
-		{"len(Filters)", len(conf.Filters), 2},
+		{"len(Filters)", len(conf.Filters), 3},
 	}
 	for i, tt := range intTests {
 		if tt.got != tt.want {
@@ -63,12 +71,13 @@ reject = true
 	}{
 		{"Listen", conf.Listen, "0.0.0.0:53"},
 		{"Protocol", conf.Protocol, "udp"},
-		{"Resolver.Hosts[0]", conf.Resolvers[0], "1.1.1.1:53"},
-		{"Resolver.Hosts[1]", conf.Resolvers[1], "1.0.0.1:53"},
+		{"Resolver.Hosts[0]", conf.Resolvers[0], "192.0.2.1:53"},
+		{"Resolver.Hosts[1]", conf.Resolvers[1], "192.0.2.2:53"},
 		{"Filter.RejectMode", conf.Filter.HijackMode, "zero"},
 		{"Filters[0].Source", conf.Filters[0].URL, "file:///home/foo/hosts-good"},
 		{"Filters[1].Source", conf.Filters[1].URL, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},
 		{"Filters[1].Timeout", conf.Filters[1].Timeout, "10s"},
+		{"Filters[2].hosts", fmt.Sprintf("%+v", conf.Filters[2].hosts), "map[goodhost1:[{IP:0.0.0.0 Zone:}] goodhost2:[{IP:0.0.0.0 Zone:}]]"},
 	}
 	for i, tt := range stringTests {
 		if tt.got != tt.want {
@@ -134,6 +143,12 @@ url = "foo://bar"
 url = "file:///tmp/foo"
 timeout = "1s"
 `
+
+	conf12 := baseConf + `
+[[filters]]
+hosts = ["0.0.0.0 host1"]
+timeout = "1s"
+`
 	var tests = []struct {
 		in  string
 		err string
@@ -151,6 +166,7 @@ timeout = "1s"
 		{conf9, ":foo: invalid url: parse :foo: missing protocol scheme"},
 		{conf10, "foo://bar: unsupported scheme: foo"},
 		{conf11, "file:///tmp/foo: timeout cannot be set for file url"},
+		{conf12, "[0.0.0.0 host1]: timeout cannot be set for inline hosts"},
 	}
 	for i, tt := range tests {
 		var got string

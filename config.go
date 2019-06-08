@@ -5,9 +5,11 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/mpolden/zdns/hosts"
 )
 
 // Config specifies is the zdns configuration parameters.
@@ -39,6 +41,8 @@ type FilterOptions struct {
 // A Filter specifies a source of DNS names and how they should be filtered.
 type Filter struct {
 	URL     string
+	Hosts   []string
+	hosts   hosts.Hosts
 	Reject  bool
 	Timeout string
 	timeout time.Duration
@@ -76,27 +80,40 @@ func (c *Config) load() error {
 		return fmt.Errorf("refresh interval must be >= 0")
 	}
 	for i, f := range c.Filters {
-		if f.URL == "" {
-			return fmt.Errorf("url must be set")
+		if (f.URL == "") == (f.Hosts == nil) {
+			return fmt.Errorf("exactly one of url or hosts must be set")
 		}
-		url, err := url.Parse(f.URL)
-		if err != nil {
-			return fmt.Errorf("%s: invalid url: %s", f.URL, err)
+		if f.URL != "" {
+			url, err := url.Parse(f.URL)
+			if err != nil {
+				return fmt.Errorf("%s: invalid url: %s", f.URL, err)
+			}
+			switch url.Scheme {
+			case "file", "http", "https":
+			default:
+				return fmt.Errorf("%s: unsupported scheme: %s", f.URL, url.Scheme)
+			}
+			if url.Scheme == "file" && f.Timeout != "" {
+				return fmt.Errorf("%s: timeout cannot be set for %s url", f.URL, url.Scheme)
+			}
+			if c.Filters[i].Timeout == "" {
+				c.Filters[i].Timeout = "0"
+			}
+			c.Filters[i].timeout, err = time.ParseDuration(c.Filters[i].Timeout)
+			if err != nil {
+				return fmt.Errorf("%s: invalid timeout: %s", f.URL, f.Timeout)
+			}
 		}
-		switch url.Scheme {
-		case "file", "http", "https":
-		default:
-			return fmt.Errorf("%s: unsupported scheme: %s", f.URL, url.Scheme)
-		}
-		if url.Scheme == "file" && f.Timeout != "" {
-			return fmt.Errorf("%s: timeout cannot be set for %s url", f.URL, url.Scheme)
-		}
-		if c.Filters[i].Timeout == "" {
-			c.Filters[i].Timeout = "0"
-		}
-		c.Filters[i].timeout, err = time.ParseDuration(c.Filters[i].Timeout)
-		if err != nil {
-			return fmt.Errorf("%s: invalid timeout: %s", f.URL, f.Timeout)
+		if f.Hosts != nil {
+			if f.Timeout != "" {
+				return fmt.Errorf("%s: timeout cannot be set for inline hosts", f.Hosts)
+			}
+			var err error
+			r := strings.NewReader(strings.Join(f.Hosts, "\n"))
+			c.Filters[i].hosts, err = hosts.Parse(r)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	for _, r := range c.Resolvers {

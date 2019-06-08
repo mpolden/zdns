@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"syscall"
 	"testing"
 	"time"
@@ -86,14 +87,20 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 		t.Fatal(err)
 	}
 	conf := Config{
+		Listen:   "0.0.0.0:53",
+		Resolver: ResolverOptions{Timeout: "0"},
 		Filter: FilterOptions{
 			hijackMode:      HijackZero,
 			refreshInterval: refreshInterval,
 		},
 		Filters: []Filter{
 			{URL: httpSrv.URL, Reject: true},
-			{URL: file, Reject: true},
+			{URL: "file://" + file, Reject: true},
+			{Hosts: []string{"192.0.2.5 badhost5"}},
 		},
+	}
+	if err := conf.load(); err != nil {
+		t.Fatal(err)
 	}
 	srv, err = NewServer(nil, conf)
 	if err != nil {
@@ -103,16 +110,32 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 	return srv, cleanup
 }
 
-func TestLoadHostsOnSignal(t *testing.T) {
+func TestLoadHosts(t *testing.T) {
+	s, cleanup := testServer(t, 10*time.Millisecond)
+	defer cleanup()
+	want := hosts.Hosts{
+		"badhost1": []net.IPAddr{{IP: net.ParseIP("192.0.2.1")}, {IP: net.ParseIP("2001:db8::1")}},
+		"badhost2": []net.IPAddr{{IP: net.ParseIP("192.0.2.2")}},
+		"badhost3": []net.IPAddr{{IP: net.ParseIP("192.0.2.3")}},
+		"badhost4": []net.IPAddr{{IP: net.ParseIP("192.0.2.4")}},
+		"badhost6": []net.IPAddr{{IP: net.ParseIP("192.0.2.6")}},
+	}
+	got := s.hosts
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
+func TestReloadHostsOnSignal(t *testing.T) {
 	s, cleanup := testServer(t, 0)
 	defer cleanup()
-	oldMatcher := s.matcher
-	if oldMatcher == nil {
+	oldHosts := s.hosts
+	if oldHosts == nil {
 		t.Fatal("expected matcher to be initialized")
 	}
 	s.signal <- syscall.SIGHUP
 	ts := time.Now()
-	for s.matcher == oldMatcher {
+	for &s.hosts == &oldHosts {
 		time.Sleep(10 * time.Millisecond)
 		if time.Since(ts) > 2*time.Second {
 			t.Fatal("timed out waiting hosts to load")
@@ -120,15 +143,15 @@ func TestLoadHostsOnSignal(t *testing.T) {
 	}
 }
 
-func TestLoadHostsOnTick(t *testing.T) {
+func TestReloadHostsOnTick(t *testing.T) {
 	s, cleanup := testServer(t, 10*time.Millisecond)
 	defer cleanup()
-	oldMatcher := s.matcher
-	if oldMatcher == nil {
+	oldHosts := s.hosts
+	if oldHosts == nil {
 		t.Fatal("expected matcher to be initialized")
 	}
 	ts := time.Now()
-	for s.matcher == oldMatcher {
+	for &s.hosts == &oldHosts {
 		time.Sleep(10 * time.Millisecond)
 		if time.Since(ts) > 2*time.Second {
 			t.Fatal("timed out waiting hosts to load")
@@ -153,10 +176,14 @@ func TestNonFqdn(t *testing.T) {
 }
 
 func TestHijack(t *testing.T) {
-	h := hosts.Hosts{"badhost1": []net.IPAddr{{IP: net.ParseIP("192.0.2.1")}, {IP: net.ParseIP("2001:db8::1")}}}
 	s := &Server{
-		Config:  Config{Filter: FilterOptions{hijackMode: HijackZero}},
-		matcher: hosts.NewMatcher(h),
+		Config: Config{Filter: FilterOptions{hijackMode: HijackZero}},
+		hosts: hosts.Hosts{
+			"badhost1": []net.IPAddr{
+				{IP: net.ParseIP("192.0.2.1")},
+				{IP: net.ParseIP("2001:db8::1")},
+			},
+		},
 	}
 	defer handleErr(t, s.Close)
 

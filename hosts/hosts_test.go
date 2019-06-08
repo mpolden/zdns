@@ -1,7 +1,6 @@
 package hosts
 
 import (
-	"net"
 	"reflect"
 	"strings"
 	"testing"
@@ -98,54 +97,4 @@ ff02::3         ip6-allhosts
 		{"0.0.0.0", []string{"0.0.0.0"}, true},
 	}
 	testParser(&Parser{}, in, tests2, t)
-}
-
-func TestMatch(t *testing.T) {
-	m1 := Matcher{
-		hosts: map[string][]net.IPAddr{
-			"test1": {{IP: net.ParseIP("192.0.2.1")}},
-			"test2": {{IP: net.ParseIP("192.0.2.2")}},
-		},
-	}
-	m2 := Matcher{}
-	m3 := Matcher{next: &m1}
-	var tests = []struct {
-		m   Matcher
-		in  string
-		out []net.IPAddr
-		ok  bool
-	}{
-		{m1, "foo", nil, false}, // Non-matching name
-		{m1, "test1", []net.IPAddr{{IP: net.ParseIP("192.0.2.1")}}, true}, // Matching name
-		{m2, "foo", nil, false}, // Empty matcher matches nothing
-		{m3, "test2", []net.IPAddr{{IP: net.ParseIP("192.0.2.2")}}, true}, // One of multiple matcher matches
-	}
-	for i, tt := range tests {
-		ipAddrs, ok := tt.m.Match(tt.in)
-		if ok != tt.ok || !reflect.DeepEqual(ipAddrs, tt.out) {
-			t.Errorf("#%d: Match(%q) = (%v, %t), want (%v, %t)", i, tt.in, ipAddrs, ok, tt.out, tt.ok)
-		}
-	}
-}
-
-func TestNewMatcher(t *testing.T) {
-	var hosts1 Hosts = map[string][]net.IPAddr{
-		"test1": {{IP: net.ParseIP("192.0.2.1")}},
-	}
-	var hosts2 Hosts = map[string][]net.IPAddr{
-		"test2": {{IP: net.ParseIP("192.0.2.2")}},
-	}
-	m := NewMatcher(hosts1, hosts2)
-	if !reflect.DeepEqual(m.hosts, hosts1) {
-		t.Errorf("got %+v, want %+v", m.hosts, hosts1)
-	}
-	if m.next == nil {
-		t.Error("want non-nil")
-	}
-	if !reflect.DeepEqual(m.next.hosts, hosts2) {
-		t.Errorf("got %+v, want %+v", m.next.hosts, hosts2)
-	}
-	if m.next.next != nil {
-		t.Error("want nil leaf")
-	}
 }
