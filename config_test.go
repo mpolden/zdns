@@ -10,7 +10,7 @@ import (
 func TestConfig(t *testing.T) {
 	text := `
 listen = "0.0.0.0:53"
-protocol = "udp"
+listen_protocol = "udp"
 cache_size = 2048
 resolvers = [
   "192.0.2.1:53",
@@ -18,7 +18,7 @@ resolvers = [
 ]
 
 [resolver]
-protocol = "udp" # or: tcp, tcp-tls
+# protocol = "tcp-tls" # or: "", "udp", "tcp"
 timeout = "1s"
 
 [filter]
@@ -71,6 +71,7 @@ reject = false
 	}{
 		{"Listen", conf.Listen, "0.0.0.0:53"},
 		{"Protocol", conf.Protocol, "udp"},
+		{"Resolver.Protocol", conf.Resolver.Protocol, "tcp-tls"},
 		{"Resolver.Hosts[0]", conf.Resolvers[0], "192.0.2.1:53"},
 		{"Resolver.Hosts[1]", conf.Resolvers[1], "192.0.2.2:53"},
 		{"Filter.RejectMode", conf.Filter.HijackMode, "zero"},

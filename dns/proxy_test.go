@@ -107,13 +107,15 @@ func TestProxy(t *testing.T) {
 		}
 		return nil
 	}
-	p := NewProxy(h, nil, 0)
+	p := NewProxy(nil, "", 0)
+	p.Handler = h
 	assertRR(t, p, TypeA, "badhost1", "0.0.0.0")
 	assertRR(t, p, TypeAAAA, "badhost1", "::")
 }
 
 func TestProxyWithResolvers(t *testing.T) {
-	p := NewProxy(nil, []string{"resolver1"}, 0)
+	p := NewProxy(nil, "", 0)
+	p.Resolvers = []string{"resolver1"}
 	client := make(testClient)
 	p.client = client
 
@@ -128,7 +130,7 @@ func TestProxyWithResolvers(t *testing.T) {
 
 	// First resolver fails, but second succeeds
 	reply = ReplyA("host1", net.ParseIP("192.0.2.2"))
-	p.resolvers = []string{"resolver1", "resolver2"}
+	p.Resolvers = []string{"resolver1", "resolver2"}
 	client["resolver2"] = &resolver{answer: &dns.Msg{Answer: reply.rr}}
 	assertRR(t, p, TypeA, "host1", "192.0.2.2")
 

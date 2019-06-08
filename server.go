@@ -57,7 +57,9 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	go server.readSignal()
 
 	// Configure proxy
-	server.proxy = dns.NewProxy(server.hijack, config.Resolvers, config.Resolver.timeout)
+	server.proxy = dns.NewProxy(logger, config.Resolver.Protocol, config.Resolver.timeout)
+	server.proxy.Handler = server.hijack
+	server.proxy.Resolvers = config.Resolvers
 
 	// Load initial hosts
 	server.loadHosts()

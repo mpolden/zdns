@@ -15,8 +15,8 @@ import (
 // Config specifies is the zdns configuration parameters.
 type Config struct {
 	Listen    string
-	Protocol  string
-	CacheSize int `toml:"cache_size"`
+	Protocol  string `toml:"listen_protocol"`
+	CacheSize int    `toml:"cache_size"`
 	Filter    FilterOptions
 	Filters   []Filter
 	Resolver  ResolverOptions
@@ -49,11 +49,14 @@ type Filter struct {
 }
 
 func (c *Config) load() error {
-	if len(c.Listen) == 0 {
+	if c.Listen == "" {
 		return fmt.Errorf("invalid listening address: %s", c.Listen)
 	}
-	if len(c.Protocol) == 0 {
+	if c.Protocol == "" {
 		c.Protocol = "udp"
+	}
+	if c.Protocol != "udp" {
+		return fmt.Errorf("unsupported protocol: %s", c.Protocol)
 	}
 	if c.CacheSize < 0 {
 		return fmt.Errorf("cache size must be >= 0")
@@ -121,8 +124,11 @@ func (c *Config) load() error {
 			return fmt.Errorf("invalid resolver: %s", err)
 		}
 	}
-	if c.Resolver.Protocol == "udp" {
+	switch c.Resolver.Protocol {
+	case "udp":
 		c.Resolver.Protocol = ""
+	case "":
+		c.Resolver.Protocol = "tcp-tls"
 	}
 	switch c.Resolver.Protocol {
 	case "", "tcp", "tcp-tls":
