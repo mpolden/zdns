@@ -41,7 +41,7 @@ hijack_mode = "zero"
 		t.Fatal(err)
 	}
 	defer handleErr(t, func() error { return os.Remove(f) })
-	srv, err := newServer(nil, []string{name, f})
+	srv, err := newServer(nil, f)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"flag"
+
 	"github.com/mpolden/zdns"
 )
 
@@ -14,24 +16,15 @@ const (
 	configName = "." + name + "rc"
 )
 
-func readConfig(name string) (zdns.Config, error) {
-	if name == "" {
-		home := os.Getenv("HOME")
-		name = filepath.Join(home, configName)
-	}
-	f, err := os.Open(name)
-	if err != nil {
-		return zdns.Config{}, err
-	}
-	return zdns.ReadConfig(f)
-}
+func defaultConfigFile() string { return filepath.Join(os.Getenv("HOME"), configName) }
 
-func newServer(log *log.Logger, args []string) (*zdns.Server, error) {
-	name := ""
-	if len(args) >= 2 {
-		name = args[1]
+func newServer(log *log.Logger, confFile string) (*zdns.Server, error) {
+	f, err := os.Open(confFile)
+	if err != nil {
+		return nil, err
 	}
-	conf, err := readConfig(name)
+	defer func() { _ = f.Close() }()
+	conf, err := zdns.ReadConfig(f)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +36,16 @@ func newServer(log *log.Logger, args []string) (*zdns.Server, error) {
 }
 
 func main() {
+	conf := flag.String("f", defaultConfigFile(), "config file `path`")
+	help := flag.Bool("h", false, "print usage")
+	flag.Parse()
+	if *help {
+		flag.Usage()
+		return
+	}
+
 	log := log.New(os.Stderr, logPrefix, 0)
-	srv, err := newServer(log, os.Args)
+	srv, err := newServer(log, *conf)
 	if err != nil {
 		log.Fatal(err)
 	}
