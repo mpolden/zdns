@@ -27,23 +27,39 @@ regular DNS requests, be portable and easy to configure.
 `zdns` uses the [TOML](https://github.com/toml-lang/toml) configuration format
 and expects to find its configuration file in `~/.zdnsrc`.
 
+### Example
+
 ``` toml
-servers = [
-    "1.1.1.1",
-    "1.0.0.1",
+[dns]
+listen = "0.0.0.0:53"
+protocol = "udp"
+cache_size = 10000
+# Use Cloudflare DNS servers
+# https://www.cloudflare.com/learning/dns/what-is-1.1.1.1/
+resolvers = [
+  "1.1.1.1:853",
+  "1.0.0.1:853",
 ]
-protocol = "udp" # or: tcp, https
-filter_refresh_interval = "48h"
+hijack_mode = "zero"
+# Refresh hosts lists every 48 hours.
+hosts_refresh_interval = "48h"
 
-[[filters]]
-source = "file:///Users/foo/hosts-trusted"
-action = "accept"
-format = "simple"
+[resolver]
+# Use DNS over TLS
+# https://developers.cloudflare.com/1.1.1.1/dns-over-tls/
+protocol = "tcp-tls" # or: tcp, tcp-tls
+timeout = "1s"
 
-[[filters]]
-source = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
-action = "reject-null"
-format = "hosts"
+[[hosts]]
+# Load blocklist from https://github.com/StevenBlack/hosts
+url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+hijack = true
+
+[[hosts]]
+# Whitelist some hosts that otherwise break YouTube features
+entries = [
+  "0.0.0.0 s.youtube.com",
+  "0.0.0.0 s2.youtube.com",
+]
+hijack = false
 ```
-
-
