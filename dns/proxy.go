@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/mpolden/zdns/cache"
 )
 
 // TypeA represents the resource record type A, an IPv4 address.
@@ -29,11 +30,23 @@ type Handler func(*Request) *Reply
 
 // Proxy represents a DNS proxy.
 type Proxy struct {
-	Handler   Handler
-	Resolvers []string
+	handler   Handler
+	resolvers []string
+	now       func() time.Time
+	cache     *cache.Cache
 	logger    *log.Logger
 	server    *dns.Server
 	client    client
+}
+
+// ProxyOptions represents proxy configuration.
+type ProxyOptions struct {
+	Handler   Handler
+	Resolvers []string
+	Logger    *log.Logger
+	Network   string
+	Timeout   time.Duration
+	CacheSize int
 }
 
 type client interface {
@@ -41,11 +54,19 @@ type client interface {
 }
 
 // NewProxy creates a new DNS proxy.
-func NewProxy(logger *log.Logger, network string, timeout time.Duration) *Proxy {
-	return &Proxy{
-		logger: logger,
-		client: &dns.Client{Net: network, Timeout: timeout},
+func NewProxy(options ProxyOptions) (*Proxy, error) {
+	cache, err := cache.New(options.CacheSize)
+	if err != nil {
+		return nil, err
 	}
+	return &Proxy{
+		handler:   options.Handler,
+		resolvers: options.Resolvers,
+		now:       time.Now,
+		logger:    options.Logger,
+		cache:     cache,
+		client:    &dns.Client{Net: options.Network, Timeout: options.Timeout},
+	}, nil
 }
 
 // ReplyA creates a resource record of type A.
@@ -84,10 +105,10 @@ func (r *Reply) String() string {
 }
 
 func (p *Proxy) reply(r *dns.Msg) *dns.Msg {
-	if p.Handler == nil || len(r.Question) != 1 {
+	if p.handler == nil || len(r.Question) != 1 {
 		return nil
 	}
-	reply := p.Handler(&Request{
+	reply := p.handler(&Request{
 		Name: r.Question[0].Name,
 		Type: r.Question[0].Qtype,
 	})
@@ -116,18 +137,26 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		_ = w.WriteMsg(reply) // TODO: Decide whether to handle write errors
 		return
 	}
-	for i, resolver := range p.Resolvers {
+	q := r.Question[0]
+	key := cache.NewKey(q.Name, q.Qtype, q.Qclass)
+	if msg, ok := p.cache.Get(key, p.now()); ok {
+		msg.SetReply(r)
+		_ = w.WriteMsg(&msg)
+		return
+	}
+	for i, resolver := range p.resolvers {
 		rr, _, err := p.client.Exchange(r, resolver)
 		if err != nil {
 			if p.logger != nil {
 				p.logger.Printf("resolver %s failed: %s", resolver, err)
 			}
-			if i == len(p.Resolvers)-1 {
+			if i == len(p.resolvers)-1 {
 				break
 			} else {
 				continue
 			}
 		}
+		p.cache.Add(rr, p.now())
 		_ = w.WriteMsg(rr)
 		return
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/mpolden/zdns/cache"
 )
 
 type dnsWriter struct{ lastReply *dns.Msg }
@@ -107,21 +108,30 @@ func TestProxy(t *testing.T) {
 		}
 		return nil
 	}
-	p := NewProxy(nil, "", 0)
-	p.Handler = h
+	p, err := NewProxy(ProxyOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.handler = h
 	assertRR(t, p, TypeA, "badhost1", "0.0.0.0")
 	assertRR(t, p, TypeAAAA, "badhost1", "::")
 }
 
 func TestProxyWithResolvers(t *testing.T) {
-	p := NewProxy(nil, "", 0)
-	p.Resolvers = []string{"resolver1"}
+	p, err := NewProxy(ProxyOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.resolvers = []string{"resolver1"}
 	client := make(testClient)
 	p.client = client
 
 	// First and only resolver responds succesfully
 	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
-	client["resolver1"] = &resolver{answer: &dns.Msg{Answer: reply.rr}}
+	m := dns.Msg{}
+	m.SetQuestion("host1.", dns.TypeA)
+	m.Answer = reply.rr
+	client["resolver1"] = &resolver{answer: &m}
 	assertRR(t, p, TypeA, "host1", "192.0.2.1")
 
 	// First and only resolver fails
@@ -130,13 +140,39 @@ func TestProxyWithResolvers(t *testing.T) {
 
 	// First resolver fails, but second succeeds
 	reply = ReplyA("host1", net.ParseIP("192.0.2.2"))
-	p.Resolvers = []string{"resolver1", "resolver2"}
-	client["resolver2"] = &resolver{answer: &dns.Msg{Answer: reply.rr}}
+	p.resolvers = []string{"resolver1", "resolver2"}
+	m = dns.Msg{}
+	m.SetQuestion("host1.", dns.TypeA)
+	m.Answer = reply.rr
+	client["resolver2"] = &resolver{answer: &m}
 	assertRR(t, p, TypeA, "host1", "192.0.2.2")
 
 	// All resolvers fail
 	client["resolver2"].fail = true
 	assertFailure(t, p, TypeA, "host1")
+}
+
+func TestProxyWithCache(t *testing.T) {
+	p, err := NewProxy(ProxyOptions{CacheSize: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.resolvers = []string{"resolver1"}
+	client := make(testClient)
+	p.client = client
+
+	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
+	m := dns.Msg{}
+	m.SetQuestion("host1.", dns.TypeA)
+	m.Answer = reply.rr
+	client["resolver1"] = &resolver{answer: &m}
+	assertRR(t, p, TypeA, "host1", "192.0.2.1")
+
+	k := cache.NewKey("host1.", dns.TypeA, dns.ClassINET)
+	got, ok := p.cache.Get(k, time.Time{})
+	if !ok {
+		t.Errorf("cache.Get(%d) = (%+v, %t), want (%+v, %t)", k, got, ok, m, !ok)
+	}
 }
 
 func TestReplyString(t *testing.T) {

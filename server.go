@@ -28,15 +28,14 @@ const (
 
 // A Server defines parameters for running a DNS server.
 type Server struct {
-	Config  Config
-	hosts   hosts.Hosts
-	logger  *log.Logger
-	proxy   *dns.Proxy
-	ticker  *time.Ticker
-	done    chan bool
-	signal  chan os.Signal
-	mu      sync.RWMutex
-	started bool
+	Config Config
+	hosts  hosts.Hosts
+	logger *log.Logger
+	proxy  *dns.Proxy
+	ticker *time.Ticker
+	done   chan bool
+	signal chan os.Signal
+	mu     sync.RWMutex
 }
 
 // NewServer returns a new server configured according to config.
@@ -57,9 +56,18 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	go server.readSignal()
 
 	// Configure proxy
-	server.proxy = dns.NewProxy(logger, config.Resolver.Protocol, config.Resolver.timeout)
-	server.proxy.Handler = server.hijack
-	server.proxy.Resolvers = config.DNS.Resolvers
+	var err error
+	server.proxy, err = dns.NewProxy(dns.ProxyOptions{
+		Handler:   server.hijack,
+		Resolvers: config.DNS.Resolvers,
+		Logger:    logger,
+		Network:   config.Resolver.Protocol,
+		Timeout:   config.Resolver.timeout,
+		CacheSize: config.DNS.CacheSize,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	// Load initial hosts
 	server.loadHosts()
