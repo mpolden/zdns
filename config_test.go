@@ -18,7 +18,7 @@ resolvers = [
   "192.0.2.2:53",
 ]
 hijack_mode = "zero" # or: empty, hosts
-refresh_interval = "48h"
+hosts_refresh_interval = "48h"
 
 [resolver]
 # protocol = "tcp-tls" # or: "", "udp", "tcp"
@@ -107,10 +107,10 @@ func TestConfigErrors(t *testing.T) {
 hijack_mode = "foo"
 `
 	conf3 := baseConf + `
-refresh_interval = "foo"
+hosts_refresh_interval = "foo"
 `
 	conf4 := baseConf + `
-refresh_interval = "-1h"
+hosts_refresh_interval = "-1h"
 `
 	conf5 := baseConf + `
 resolvers = ["foo"]

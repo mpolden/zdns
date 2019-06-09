@@ -26,7 +26,7 @@ type DNSOptions struct {
 	CacheSize       int    `toml:"cache_size"`
 	HijackMode      string `toml:"hijack_mode"`
 	hijackMode      int
-	RefreshInterval string `toml:"refresh_interval"`
+	RefreshInterval string `toml:"hosts_refresh_interval"`
 	refreshInterval time.Duration
 	Resolvers       []string
 }
