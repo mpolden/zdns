@@ -11,7 +11,7 @@ func TestConfig(t *testing.T) {
 	text := `
 [dns]
 listen = "0.0.0.0:53"
-listen_protocol = "udp"
+protocol = "udp"
 cache_size = 2048
 resolvers = [
   "192.0.2.1:53",
@@ -21,7 +21,7 @@ hijack_mode = "zero" # or: empty, hosts
 hosts_refresh_interval = "48h"
 
 [resolver]
-# protocol = "tcp-tls" # or: "", "udp", "tcp"
+protocol = "tcp-tls" # or: "", "udp", "tcp"
 timeout = "1s"
 
 [[hosts]]

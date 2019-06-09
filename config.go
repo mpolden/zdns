@@ -22,7 +22,7 @@ type Config struct {
 // DNSOptions controlers the behaviour of the DNS server.
 type DNSOptions struct {
 	Listen          string
-	Protocol        string `toml:"listen_protocol"`
+	Protocol        string `toml:"protocol"`
 	CacheSize       int    `toml:"cache_size"`
 	HijackMode      string `toml:"hijack_mode"`
 	hijackMode      int
