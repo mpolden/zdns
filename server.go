@@ -63,8 +63,6 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 
 	// Load initial hosts
 	server.loadHosts()
-
-	server.started = true
 	return server, nil
 }
 
@@ -180,19 +178,23 @@ func (s *Server) loadHosts() {
 		}
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.hosts = hs
+	s.mu.Unlock()
 	s.logf("loaded %d hosts in total", len(hs))
 }
 
 // Close terminates all active operations and shuts down the DNS server.
 func (s *Server) Close() error {
-	if !s.started {
-		return nil
+	if s.ticker != nil {
+		s.done <- true
 	}
-	s.done <- true
-	s.done <- true
-	return s.proxy.Close()
+	if s.signal != nil {
+		s.done <- true
+	}
+	if s.proxy != nil {
+		return s.proxy.Close()
+	}
+	return nil
 }
 
 func (s *Server) hijack(r *dns.Request) *dns.Reply {
@@ -200,8 +202,8 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 		return nil // Type not applicable
 	}
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 	ipAddrs, ok := s.hosts.Get(nonFqdn(r.Name))
+	s.mu.RUnlock()
 	if !ok {
 		return nil // No match
 	}
