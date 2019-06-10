@@ -21,7 +21,7 @@ fmt:
 lint: fmt vet golint errcheck staticcheck
 
 install-tools:
-	cd tools; \
+	cd tools && \
 		go list -tags tools -f '{{range $$i := .Imports}}{{printf "%s\n" $$i}}{{end}}' | xargs go install
 
 install-embedded:
