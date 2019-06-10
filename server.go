@@ -58,12 +58,13 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	// Configure proxy
 	var err error
 	server.proxy, err = dns.NewProxy(dns.ProxyOptions{
-		Handler:   server.hijack,
-		Resolvers: config.DNS.Resolvers,
-		Logger:    logger,
-		Network:   config.Resolver.Protocol,
-		Timeout:   config.Resolver.timeout,
-		CacheSize: config.DNS.CacheSize,
+		Handler:             server.hijack,
+		Resolvers:           config.DNS.Resolvers,
+		Logger:              logger,
+		Network:             config.Resolver.Protocol,
+		Timeout:             config.Resolver.timeout,
+		CacheSize:           config.DNS.CacheSize,
+		CacheExpiryInterval: config.DNS.cacheExpiryInterval,
 	})
 	if err != nil {
 		return nil, err

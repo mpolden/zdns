@@ -44,35 +44,38 @@ func (c testClient) Exchange(m *dns.Msg, addr string) (*dns.Msg, time.Duration, 
 	return r.answer, time.Minute * 5, nil
 }
 
-func assertRR(t *testing.T, p *Proxy, rtype uint16, qname, answer string) {
-	m := dns.Msg{}
-	m.Id = dns.Id()
-	m.RecursionDesired = true
-	m.SetQuestion(dns.Fqdn(qname), rtype)
-
+func assertRR(t *testing.T, p *Proxy, m *dns.Msg, answer string) {
+	var (
+		qtype = m.Question[0].Qtype
+		qname = m.Question[0].Name
+	)
 	w := &dnsWriter{}
-	p.ServeDNS(w, &m)
+	p.ServeDNS(w, m)
 
-	rtypeString := dns.TypeToString[rtype]
+	qtypeString := dns.TypeToString[qtype]
 	answers := w.lastReply.Answer
 	if got, want := len(answers), 1; got != want {
-		t.Fatalf("len(msg.Answer) = %d, want %d for %s %s", got, want, rtypeString, qname)
+		t.Fatalf("len(msg.Answer) = %d, want %d for %s %s", got, want, qtypeString, qname)
 	}
 	ans := answers[0]
 
+	if got := w.lastReply.Id; got != m.Id {
+		t.Errorf("id = %d, want %d for %s %s", got, m.Id, qtypeString, qname)
+	}
+
 	want := net.ParseIP(answer)
 	var got net.IP
-	switch rtype {
+	switch qtype {
 	case dns.TypeA:
 		rr, ok := ans.(*dns.A)
 		if !ok {
-			t.Errorf("type = %q, want %q for %s %s", dns.TypeToString[dns.TypeA], dns.TypeToString[rr.Header().Rrtype], rtypeString, qname)
+			t.Errorf("type = %q, want %q for %s %s", dns.TypeToString[dns.TypeA], dns.TypeToString[rr.Header().Rrtype], qtypeString, qname)
 		}
 		got = rr.A
 	case dns.TypeAAAA:
 		rr, ok := ans.(*dns.AAAA)
 		if !ok {
-			t.Errorf("type = %q, want %q for %s %s", dns.TypeToString[dns.TypeA], dns.TypeToString[rr.Header().Rrtype], rtypeString, qname)
+			t.Errorf("type = %q, want %q for %s %s", dns.TypeToString[dns.TypeA], dns.TypeToString[rr.Header().Rrtype], qtypeString, qname)
 		}
 		got = rr.AAAA
 	}
@@ -108,17 +111,25 @@ func TestProxy(t *testing.T) {
 		}
 		return nil
 	}
-	p, err := NewProxy(ProxyOptions{})
+	p, err := NewProxy(ProxyOptions{CacheExpiryInterval: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.handler = h
-	assertRR(t, p, TypeA, "badhost1", "0.0.0.0")
-	assertRR(t, p, TypeAAAA, "badhost1", "::")
+
+	m := dns.Msg{}
+	m.Id = dns.Id()
+	m.RecursionDesired = true
+
+	m.SetQuestion(dns.Fqdn("badhost1"), dns.TypeA)
+	assertRR(t, p, &m, "0.0.0.0")
+
+	m.SetQuestion(dns.Fqdn("badhost1"), dns.TypeAAAA)
+	assertRR(t, p, &m, "::")
 }
 
 func TestProxyWithResolvers(t *testing.T) {
-	p, err := NewProxy(ProxyOptions{})
+	p, err := NewProxy(ProxyOptions{CacheExpiryInterval: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,10 +140,11 @@ func TestProxyWithResolvers(t *testing.T) {
 	// First and only resolver responds succesfully
 	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
 	m := dns.Msg{}
+	m.Id = dns.Id()
 	m.SetQuestion("host1.", dns.TypeA)
 	m.Answer = reply.rr
 	client["resolver1"] = &resolver{answer: &m}
-	assertRR(t, p, TypeA, "host1", "192.0.2.1")
+	assertRR(t, p, &m, "192.0.2.1")
 
 	// First and only resolver fails
 	client["resolver1"].fail = true
@@ -142,10 +154,11 @@ func TestProxyWithResolvers(t *testing.T) {
 	reply = ReplyA("host1", net.ParseIP("192.0.2.2"))
 	p.resolvers = []string{"resolver1", "resolver2"}
 	m = dns.Msg{}
+	m.Id = dns.Id()
 	m.SetQuestion("host1.", dns.TypeA)
 	m.Answer = reply.rr
 	client["resolver2"] = &resolver{answer: &m}
-	assertRR(t, p, TypeA, "host1", "192.0.2.2")
+	assertRR(t, p, &m, "192.0.2.2")
 
 	// All resolvers fail
 	client["resolver2"].fail = true
@@ -153,7 +166,7 @@ func TestProxyWithResolvers(t *testing.T) {
 }
 
 func TestProxyWithCache(t *testing.T) {
-	p, err := NewProxy(ProxyOptions{CacheSize: 10})
+	p, err := NewProxy(ProxyOptions{CacheSize: 10, CacheExpiryInterval: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,13 +176,14 @@ func TestProxyWithCache(t *testing.T) {
 
 	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
 	m := dns.Msg{}
+	m.Id = dns.Id()
 	m.SetQuestion("host1.", dns.TypeA)
 	m.Answer = reply.rr
 	client["resolver1"] = &resolver{answer: &m}
-	assertRR(t, p, TypeA, "host1", "192.0.2.1")
+	assertRR(t, p, &m, "192.0.2.1")
 
 	k := cache.NewKey("host1.", dns.TypeA, dns.ClassINET)
-	got, ok := p.cache.Get(k, time.Time{})
+	got, ok := p.cache.Get(k)
 	if !ok {
 		t.Errorf("cache.Get(%d) = (%+v, %t), want (%+v, %t)", k, got, ok, m, !ok)
 	}

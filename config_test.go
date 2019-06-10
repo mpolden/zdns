@@ -13,6 +13,7 @@ func TestConfig(t *testing.T) {
 listen = "0.0.0.0:53"
 protocol = "udp"
 cache_size = 2048
+cache_expiry_interval = "5m"
 resolvers = [
   "192.0.2.1:53",
   "192.0.2.2:53",
@@ -52,6 +53,7 @@ hijack = false
 		want  int
 	}{
 		{"DNS.CacheSize", conf.DNS.CacheSize, 2048},
+		{"DNS.CacheExpiryInterval", int(conf.DNS.cacheExpiryInterval), int(5 * time.Minute)},
 		{"len(DNS.Resolvers)", len(conf.DNS.Resolvers), 2},
 		{"Resolver.Timeout", int(conf.Resolver.timeout), int(time.Second)},
 		{"DNS.RefreshInterval", int(conf.DNS.refreshInterval), int(48 * time.Hour)},
@@ -140,11 +142,13 @@ url = "foo://bar"
 url = "file:///tmp/foo"
 timeout = "1s"
 `
-
 	conf12 := baseConf + `
 [[hosts]]
 entries = ["0.0.0.0 host1"]
 timeout = "1s"
+`
+	conf13 := baseConf + `
+cache_expiry_interval = "foo"
 `
 	var tests = []struct {
 		in  string
@@ -164,6 +168,7 @@ timeout = "1s"
 		{conf10, "foo://bar: unsupported scheme: foo"},
 		{conf11, "file:///tmp/foo: timeout cannot be set for file url"},
 		{conf12, "[0.0.0.0 host1]: timeout cannot be set for inline hosts"},
+		{conf13, "invalid cache expiry interval: time: invalid duration foo"},
 	}
 	for i, tt := range tests {
 		var got string

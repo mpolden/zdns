@@ -32,7 +32,6 @@ type Handler func(*Request) *Reply
 type Proxy struct {
 	handler   Handler
 	resolvers []string
-	now       func() time.Time
 	cache     *cache.Cache
 	logger    *log.Logger
 	server    *dns.Server
@@ -41,12 +40,13 @@ type Proxy struct {
 
 // ProxyOptions represents proxy configuration.
 type ProxyOptions struct {
-	Handler   Handler
-	Resolvers []string
-	Logger    *log.Logger
-	Network   string
-	Timeout   time.Duration
-	CacheSize int
+	Handler             Handler
+	Resolvers           []string
+	Logger              *log.Logger
+	Network             string
+	Timeout             time.Duration
+	CacheSize           int
+	CacheExpiryInterval time.Duration
 }
 
 type client interface {
@@ -55,14 +55,13 @@ type client interface {
 
 // NewProxy creates a new DNS proxy.
 func NewProxy(options ProxyOptions) (*Proxy, error) {
-	cache, err := cache.New(options.CacheSize)
+	cache, err := cache.New(options.CacheSize, options.CacheExpiryInterval)
 	if err != nil {
 		return nil, err
 	}
 	return &Proxy{
 		handler:   options.Handler,
 		resolvers: options.Resolvers,
-		now:       time.Now,
 		logger:    options.Logger,
 		cache:     cache,
 		client:    &dns.Client{Net: options.Network, Timeout: options.Timeout},
@@ -122,12 +121,12 @@ func (p *Proxy) reply(r *dns.Msg) *dns.Msg {
 	return &m
 }
 
-// Close closes the proxy and release associated resources.
+// Close closes the proxy.
 func (p *Proxy) Close() error {
 	if p.server != nil {
 		return p.server.Shutdown()
 	}
-	return nil
+	return p.cache.Close()
 }
 
 // ServeDNS implements the dns.Handler interface.
@@ -139,9 +138,9 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 	q := r.Question[0]
 	key := cache.NewKey(q.Name, q.Qtype, q.Qclass)
-	if msg, ok := p.cache.Get(key, p.now()); ok {
+	if msg, ok := p.cache.Get(key); ok {
 		msg.SetReply(r)
-		_ = w.WriteMsg(&msg)
+		_ = w.WriteMsg(msg)
 		return
 	}
 	for i, resolver := range p.resolvers {
@@ -156,7 +155,7 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				continue
 			}
 		}
-		p.cache.Add(rr, p.now())
+		p.cache.Set(key, rr)
 		_ = w.WriteMsg(rr)
 		return
 	}

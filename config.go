@@ -21,14 +21,16 @@ type Config struct {
 
 // DNSOptions controlers the behaviour of the DNS server.
 type DNSOptions struct {
-	Listen          string
-	Protocol        string `toml:"protocol"`
-	CacheSize       int    `toml:"cache_size"`
-	HijackMode      string `toml:"hijack_mode"`
-	hijackMode      int
-	RefreshInterval string `toml:"hosts_refresh_interval"`
-	refreshInterval time.Duration
-	Resolvers       []string
+	Listen              string
+	Protocol            string `toml:"protocol"`
+	CacheExpiryInterval string `toml:"cache_expiry_interval"`
+	cacheExpiryInterval time.Duration
+	CacheSize           int    `toml:"cache_size"`
+	HijackMode          string `toml:"hijack_mode"`
+	hijackMode          int
+	RefreshInterval     string `toml:"hosts_refresh_interval"`
+	refreshInterval     time.Duration
+	Resolvers           []string
 }
 
 // ResolverOptions controls the behaviour of resolvers.
@@ -49,6 +51,7 @@ type Hosts struct {
 }
 
 func (c *Config) load() error {
+	var err error
 	if c.DNS.Listen == "" {
 		return fmt.Errorf("invalid listening address: %s", c.DNS.Listen)
 	}
@@ -60,6 +63,13 @@ func (c *Config) load() error {
 	}
 	if c.DNS.CacheSize < 0 {
 		return fmt.Errorf("cache size must be >= 0")
+	}
+	if c.DNS.CacheExpiryInterval == "" {
+		c.DNS.CacheExpiryInterval = "15m"
+	}
+	c.DNS.cacheExpiryInterval, err = time.ParseDuration(c.DNS.CacheExpiryInterval)
+	if err != nil {
+		return fmt.Errorf("invalid cache expiry interval: %s", err)
 	}
 	switch c.DNS.HijackMode {
 	case "", "zero":
@@ -74,7 +84,6 @@ func (c *Config) load() error {
 	if c.DNS.RefreshInterval == "" {
 		c.DNS.RefreshInterval = "0"
 	}
-	var err error
 	c.DNS.refreshInterval, err = time.ParseDuration(c.DNS.RefreshInterval)
 	if err != nil {
 		return fmt.Errorf("invalid refresh interval: %s", err)
