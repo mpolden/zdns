@@ -21,7 +21,8 @@ fmt:
 lint: fmt vet golint errcheck staticcheck
 
 install-tools:
-	go list -tags tools -f '{{range $$i := .Imports}}{{printf "%s\n" $$i}}{{end}}' | xargs go install
+	cd tools; \
+		go list -tags tools -f '{{range $$i := .Imports}}{{printf "%s\n" $$i}}{{end}}' | xargs go install
 
 install-embedded:
 	env GOOS=linux GOARCH=mipsle go install -ldflags '-s -w' ./...
