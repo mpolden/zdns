@@ -75,7 +75,7 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	return server, nil
 }
 
-func readHosts(name string) (hosts.Hosts, error) {
+func readHosts(name string, timeout time.Duration) (hosts.Hosts, error) {
 	url, err := url.Parse(name)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (s *Server) loadHosts() {
 		if h.URL != "" {
 			src = h.URL
 			var err error
-			hs1, err = readHosts(h.URL)
+			hs1, err = readHosts(h.URL, h.timeout)
 			if err != nil {
 				s.logf("failed to read hosts from %s: %s", h.URL, err)
 				continue
