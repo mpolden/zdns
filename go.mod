@@ -1,5 +1,7 @@
 module github.com/mpolden/zdns
 
+go 1.12
+
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/miekg/dns v1.1.14
