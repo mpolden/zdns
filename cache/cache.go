@@ -13,11 +13,11 @@ import (
 // Cache represents a cache of DNS entries. Use New to initialize a new cache.
 type Cache struct {
 	maxSize    int
-	entries    map[uint32]value
-	keys       []uint32
 	now        func() time.Time
 	maintainer *maintainer
 	mu         sync.RWMutex
+	entries    map[uint32]value
+	keys       []uint32
 }
 
 type maintainer struct {
@@ -84,7 +84,7 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-// Get returns the DNS message associated with key k. Get will return nil if any TTL in the answer section of the //
+// Get returns the DNS message associated with key k. Get will return nil if any TTL in the answer section of the
 // message is exceeded according to time t.
 func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
 	c.mu.RLock()
@@ -100,7 +100,7 @@ func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
 }
 
 // Set associated key k with the DNS message v. Message v will expire from the cache according to its TTL. Setting a
-// value in a cache that has reached its maximum size will remove the oldest entry.
+// new key in a cache that has  its maximum size will remove the first key.
 func (c *Cache) Set(k uint32, v *dns.Msg) {
 	if c.maxSize == 0 {
 		return
