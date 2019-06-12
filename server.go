@@ -248,5 +248,6 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 
 // ListenAndServe starts a server on configured address and protocol.
 func (s *Server) ListenAndServe() error {
+	s.logf("listening on %s [%s]", s.Config.DNS.Listen, s.Config.DNS.Protocol)
 	return s.proxy.ListenAndServe(s.Config.DNS.Listen, s.Config.DNS.Protocol)
 }
