@@ -16,7 +16,7 @@ type Cache struct {
 	now        func() time.Time
 	maintainer *maintainer
 	mu         sync.RWMutex
-	entries    map[uint32]value
+	entries    map[uint32]*value
 	keys       []uint32
 }
 
@@ -63,7 +63,7 @@ func New(maxSize int, expiryInterval time.Duration) (*Cache, error) {
 	cache := &Cache{
 		now:     time.Now,
 		maxSize: maxSize,
-		entries: make(map[uint32]value),
+		entries: make(map[uint32]*value),
 	}
 	maintain(cache, expiryInterval)
 	return cache, nil
@@ -93,7 +93,7 @@ func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
 	if !ok {
 		return nil, false
 	}
-	if c.isExpired(&v) {
+	if c.isExpired(v) {
 		return nil, false
 	}
 	return v.msg, true
@@ -111,7 +111,7 @@ func (c *Cache) Set(k uint32, v *dns.Msg) {
 		delete(c.entries, c.keys[0])
 		c.keys = c.keys[1:]
 	}
-	c.entries[k] = value{v, now}
+	c.entries[k] = &value{v, now}
 	c.keys = append(c.keys, k)
 	c.mu.Unlock()
 }
@@ -119,7 +119,7 @@ func (c *Cache) Set(k uint32, v *dns.Msg) {
 func (c *Cache) deleteExpired() {
 	c.mu.Lock()
 	for k, v := range c.entries {
-		if c.isExpired(&v) {
+		if c.isExpired(v) {
 			delete(c.entries, k)
 		}
 	}
