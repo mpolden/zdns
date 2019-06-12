@@ -90,12 +90,10 @@ func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
 	c.mu.RLock()
 	v, ok := c.entries[k]
 	c.mu.RUnlock()
-	if !ok {
+	if !ok || c.isExpired(v) {
 		return nil, false
 	}
-	if c.isExpired(v) {
-		return nil, false
-	}
+
 	return v.msg, true
 }
 
@@ -138,5 +136,5 @@ func (c *Cache) isExpired(v *value) bool {
 
 func ttl(rr dns.RR) time.Duration {
 	ttlSecs := rr.Header().Ttl
-	return time.Duration(time.Duration(ttlSecs) * time.Second)
+	return time.Duration(ttlSecs) * time.Second
 }
