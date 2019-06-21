@@ -112,7 +112,7 @@ func TestCacheMaxSize(t *testing.T) {
 		{3, 2, 2},
 	}
 	for i, tt := range tests {
-		c, err := New(tt.maxSize, time.Duration(10*time.Minute))
+		c, err := New(tt.maxSize, 10*time.Minute)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,5 +139,23 @@ func TestCacheMaxSize(t *testing.T) {
 				t.Errorf("#%d: Get(NewKey(%q, _, _)) = (_, %t), want (_, %t)", i, firstAdded.Name, ok, !ok)
 			}
 		}
+	}
+}
+
+func BenchmarkNewKey(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = NewKey("key", 1, 1)
+	}
+}
+
+func BenchmarkCache(b *testing.B) {
+	c, err := New(1000, 10*time.Minute)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		c.Set(uint32(n), &dns.Msg{})
+		_, _ = c.Get(uint32(n))
 	}
 }
