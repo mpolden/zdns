@@ -63,7 +63,7 @@ func New(maxSize int, expiryInterval time.Duration) (*Cache, error) {
 	cache := &Cache{
 		now:     time.Now,
 		maxSize: maxSize,
-		entries: make(map[uint32]*value),
+		entries: make(map[uint32]*value, maxSize),
 	}
 	maintain(cache, expiryInterval)
 	return cache, nil
@@ -93,7 +93,6 @@ func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
 	if !ok || c.isExpired(v) {
 		return nil, false
 	}
-
 	return v.msg, true
 }
 
