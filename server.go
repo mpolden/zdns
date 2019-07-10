@@ -3,7 +3,6 @@ package zdns
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
+	"github.com/mpolden/zdns/log"
 )
 
 const (
@@ -113,12 +113,6 @@ func nonFqdn(s string) string {
 	return s
 }
 
-func (s *Server) logf(format string, v ...interface{}) {
-	if s.logger != nil {
-		s.logger.Printf(format, v...)
-	}
-}
-
 func (s *Server) readSignal() {
 	for {
 		select {
@@ -128,15 +122,15 @@ func (s *Server) readSignal() {
 		case sig := <-s.signal:
 			switch sig {
 			case syscall.SIGHUP:
-				s.logf("received signal %s: reloading filters", sig)
+				s.logger.Printf("received signal %s: reloading filters", sig)
 				s.loadHosts()
 			case syscall.SIGTERM, syscall.SIGINT:
-				s.logf("received signal %s: shutting down", sig)
+				s.logger.Printf("received signal %s: shutting down", sig)
 				if err := s.Close(); err != nil {
-					s.logf("close failed: %s", err)
+					s.logger.Printf("close failed: %s", err)
 				}
 			default:
-				s.logf("received signal %s: ignoring", sig)
+				s.logger.Printf("received signal %s: ignoring", sig)
 			}
 		}
 	}
@@ -164,7 +158,7 @@ func (s *Server) loadHosts() {
 			var err error
 			hs1, err = readHosts(h.URL, h.timeout)
 			if err != nil {
-				s.logf("failed to read hosts from %s: %s", h.URL, err)
+				s.logger.Printf("failed to read hosts from %s: %s", h.URL, err)
 				continue
 			}
 		}
@@ -172,7 +166,7 @@ func (s *Server) loadHosts() {
 			for name, ipAddrs := range hs1 {
 				hs[name] = ipAddrs
 			}
-			s.logf("loaded %d hosts from %s", len(hs1), src)
+			s.logger.Printf("loaded %d hosts from %s", len(hs1), src)
 		} else {
 			removed := 0
 			for hostToRemove := range hs1 {
@@ -182,14 +176,14 @@ func (s *Server) loadHosts() {
 				}
 			}
 			if removed > 0 {
-				s.logf("removed %d hosts from %s", removed, src)
+				s.logger.Printf("removed %d hosts from %s", removed, src)
 			}
 		}
 	}
 	s.mu.Lock()
 	s.hosts = hs
 	s.mu.Unlock()
-	s.logf("loaded %d hosts in total", len(hs))
+	s.logger.Printf("loaded %d hosts in total", len(hs))
 }
 
 // Close terminates all active operations and shuts down the DNS server.
@@ -248,6 +242,6 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 
 // ListenAndServe starts a server on configured address and protocol.
 func (s *Server) ListenAndServe() error {
-	s.logf("listening on %s [%s]", s.Config.DNS.Listen, s.Config.DNS.Protocol)
+	s.logger.Printf("listening on %s [%s]", s.Config.DNS.Listen, s.Config.DNS.Protocol)
 	return s.proxy.ListenAndServe(s.Config.DNS.Listen, s.Config.DNS.Protocol)
 }

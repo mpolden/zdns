@@ -1,13 +1,13 @@
 package dns
 
 import (
-	"log"
 	"net"
 	"strings"
 	"time"
 
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
+	"github.com/mpolden/zdns/log"
 )
 
 // TypeA represents the resource record type A, an IPv4 address.

@@ -4,6 +4,8 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/mpolden/zdns/log"
 )
 
 func handleErr(t *testing.T, fn func() error) {
@@ -41,7 +43,7 @@ hijack_mode = "zero"
 		t.Fatal(err)
 	}
 	defer handleErr(t, func() error { return os.Remove(f) })
-	srv, err := newServer(nil, f)
+	srv, err := newServer(log.New(ioutil.Discard, ""), f)
 	if err != nil {
 		t.Fatal(err)
 	}

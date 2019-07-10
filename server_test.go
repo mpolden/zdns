@@ -13,6 +13,7 @@ import (
 
 	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
+	"github.com/mpolden/zdns/log"
 )
 
 const hostsFile1 = `
@@ -101,7 +102,7 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 	if err := conf.load(); err != nil {
 		t.Fatal(err)
 	}
-	srv, err = NewServer(nil, conf)
+	srv, err = NewServer(log.New(ioutil.Discard, ""), conf)
 	if err != nil {
 		defer cleanup()
 		t.Fatal(err)

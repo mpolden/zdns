@@ -1,13 +1,13 @@
 package main
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 
 	"flag"
 
 	"github.com/mpolden/zdns"
+	"github.com/mpolden/zdns/log"
 )
 
 const (
@@ -44,7 +44,7 @@ func main() {
 		return
 	}
 
-	log := log.New(os.Stderr, logPrefix, 0)
+	log := log.New(os.Stderr, logPrefix)
 	srv, err := newServer(log, *conf)
 	if err != nil {
 		log.Fatal(err)
