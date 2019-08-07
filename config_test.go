@@ -20,6 +20,7 @@ resolvers = [
 ]
 hijack_mode = "zero" # or: empty, hosts
 hosts_refresh_interval = "48h"
+log_database = "/tmp/log.db"
 
 [resolver]
 protocol = "tcp-tls" # or: "", "udp", "tcp"
@@ -75,6 +76,7 @@ hijack = false
 		{"DNS.Resolvers[0]", conf.DNS.Resolvers[0], "192.0.2.1:53"},
 		{"DNS.Resolvers[1]", conf.DNS.Resolvers[1], "192.0.2.2:53"},
 		{"DNS.HijackMode", conf.DNS.HijackMode, "zero"},
+		{"DNS.LogDatabase", conf.DNS.LogDatabase, "/tmp/log.db"},
 		{"Resolver.Protocol", conf.Resolver.Protocol, "tcp-tls"},
 		{"Hosts[0].Source", conf.Hosts[0].URL, "file:///home/foo/hosts-good"},
 		{"Hosts[1].Source", conf.Hosts[1].URL, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},

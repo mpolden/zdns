@@ -197,7 +197,7 @@ func (s *Server) Close() error {
 	if s.proxy != nil {
 		return s.proxy.Close()
 	}
-	return nil
+	return s.logger.Close()
 }
 
 func (s *Server) hijack(r *dns.Request) *dns.Reply {

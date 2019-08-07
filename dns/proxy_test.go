@@ -2,6 +2,7 @@ package dns
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"reflect"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
+	"github.com/mpolden/zdns/log"
 )
 
 type dnsWriter struct{ lastReply *dns.Msg }
@@ -42,6 +44,23 @@ func (c testClient) Exchange(m *dns.Msg, addr string) (*dns.Msg, time.Duration, 
 		return nil, 0, fmt.Errorf("%s SERVFAIL", addr)
 	}
 	return r.answer, time.Minute * 5, nil
+}
+
+func testProxy(t *testing.T) *Proxy {
+	return testProxyWithOptions(t, ProxyOptions{CacheExpiryInterval: time.Minute})
+}
+
+func testProxyWithOptions(t *testing.T, options ProxyOptions) *Proxy {
+	log, err := log.New(ioutil.Discard, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	options.Logger = log
+	proxy, err := NewProxy(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return proxy
 }
 
 func assertRR(t *testing.T, p *Proxy, m *dns.Msg, answer string) {
@@ -111,10 +130,7 @@ func TestProxy(t *testing.T) {
 		}
 		return nil
 	}
-	p, err := NewProxy(ProxyOptions{CacheExpiryInterval: time.Minute})
-	if err != nil {
-		t.Fatal(err)
-	}
+	p := testProxy(t)
 	p.handler = h
 
 	m := dns.Msg{}
@@ -129,10 +145,7 @@ func TestProxy(t *testing.T) {
 }
 
 func TestProxyWithResolvers(t *testing.T) {
-	p, err := NewProxy(ProxyOptions{CacheExpiryInterval: time.Minute})
-	if err != nil {
-		t.Fatal(err)
-	}
+	p := testProxy(t)
 	p.resolvers = []string{"resolver1"}
 	client := make(testClient)
 	p.client = client
@@ -166,10 +179,7 @@ func TestProxyWithResolvers(t *testing.T) {
 }
 
 func TestProxyWithCache(t *testing.T) {
-	p, err := NewProxy(ProxyOptions{CacheSize: 10, CacheExpiryInterval: time.Minute})
-	if err != nil {
-		t.Fatal(err)
-	}
+	p := testProxyWithOptions(t, ProxyOptions{CacheSize: 10, CacheExpiryInterval: time.Minute})
 	p.resolvers = []string{"resolver1"}
 	client := make(testClient)
 	p.client = client

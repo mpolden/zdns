@@ -124,23 +124,33 @@ func (p *Proxy) reply(r *dns.Msg) *dns.Msg {
 // Close closes the proxy.
 func (p *Proxy) Close() error {
 	if p.server != nil {
-		return p.server.Shutdown()
+		if err := p.server.Shutdown(); err != nil {
+			return err
+		}
 	}
 	return p.cache.Close()
 }
 
+func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg) {
+	answer := ""
+	if len(msg.Answer) > 0 {
+		answer = msg.Answer[0].Header().Name
+	}
+	p.logger.LogDNS(msg.Question[0].Qtype, msg.Question[0].Name, answer)
+	_ = w.WriteMsg(msg)
+}
+
 // ServeDNS implements the dns.Handler interface.
 func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	reply := p.reply(r)
-	if reply != nil {
-		_ = w.WriteMsg(reply) // TODO: Decide whether to handle write errors
+	if reply := p.reply(r); reply != nil {
+		p.writeMsg(w, reply)
 		return
 	}
 	q := r.Question[0]
 	key := cache.NewKey(q.Name, q.Qtype, q.Qclass)
 	if msg, ok := p.cache.Get(key); ok {
 		msg.SetReply(r)
-		_ = w.WriteMsg(msg)
+		p.writeMsg(w, msg)
 		return
 	}
 	for i, resolver := range p.resolvers {
@@ -156,7 +166,7 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			}
 		}
 		p.cache.Set(key, rr)
-		_ = w.WriteMsg(rr)
+		p.writeMsg(w, rr)
 		return
 	}
 	dns.HandleFailed(w, r)

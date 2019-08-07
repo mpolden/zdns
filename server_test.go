@@ -102,7 +102,11 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 	if err := conf.load(); err != nil {
 		t.Fatal(err)
 	}
-	srv, err = NewServer(log.New(ioutil.Discard, ""), conf)
+	log, err := log.New(ioutil.Discard, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err = NewServer(log, conf)
 	if err != nil {
 		defer cleanup()
 		t.Fatal(err)
@@ -176,6 +180,7 @@ func TestNonFqdn(t *testing.T) {
 }
 
 func TestHijack(t *testing.T) {
+	log, _ := log.New(ioutil.Discard, "", "")
 	s := &Server{
 		Config: Config{},
 		hosts: hosts.Hosts{
@@ -184,6 +189,7 @@ func TestHijack(t *testing.T) {
 				{IP: net.ParseIP("2001:db8::1")},
 			},
 		},
+		logger: log,
 	}
 	defer handleErr(t, s.Close)
 

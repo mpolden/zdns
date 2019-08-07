@@ -31,6 +31,7 @@ type DNSOptions struct {
 	RefreshInterval     string `toml:"hosts_refresh_interval"`
 	refreshInterval     time.Duration
 	Resolvers           []string
+	LogDatabase         string `toml:"log_database"`
 }
 
 // ResolverOptions controls the behaviour of resolvers.

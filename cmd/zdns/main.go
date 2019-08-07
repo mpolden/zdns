@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -18,7 +20,7 @@ const (
 
 func defaultConfigFile() string { return filepath.Join(os.Getenv("HOME"), configName) }
 
-func newServer(log *log.Logger, confFile string) (*zdns.Server, error) {
+func newServer(out io.Writer, confFile string) (*zdns.Server, error) {
 	f, err := os.Open(confFile)
 	if err != nil {
 		return nil, err
@@ -28,28 +30,31 @@ func newServer(log *log.Logger, confFile string) (*zdns.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	server, err := zdns.NewServer(log, conf)
+	log, err := log.New(out, logPrefix, conf.DNS.LogDatabase)
 	if err != nil {
 		return nil, err
 	}
-	return server, nil
+	return zdns.NewServer(log, conf)
+}
+
+func fatal(err error) {
+	fmt.Fprintf(os.Stderr, "%s: %s\n", logPrefix, err)
+	os.Exit(1)
 }
 
 func main() {
-	conf := flag.String("f", defaultConfigFile(), "config file `path`")
+	confFile := flag.String("f", defaultConfigFile(), "config file `path`")
 	help := flag.Bool("h", false, "print usage")
 	flag.Parse()
 	if *help {
 		flag.Usage()
 		return
 	}
-
-	log := log.New(os.Stderr, logPrefix)
-	srv, err := newServer(log, *conf)
+	srv, err := newServer(os.Stderr, *confFile)
 	if err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 }

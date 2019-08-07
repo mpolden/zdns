@@ -45,16 +45,6 @@ CREATE TABLE IF NOT EXISTS log_rr_answer (
 );
 `
 
-/*
-INSERT INTO rr_question (name) VALUES ('foo.bar');
-INSERT INTO rr_type (type) VALUES (15);
-INSERT INTO rr_answer (name) VALUES ('1.1.1.1');
-INSERT INTO rr_answer (name) VALUES ('1.0.0.1');
-INSERT INTO log (time, rr_question_id, rr_type_id) VALUES (123, 1, 1);
-INSERT INTO log_rr_answer (log_id, rr_answer_id) VALUES (1, 1);
-INSERT INTO log_rr_answer (log_id, rr_answer_id) VALUES (1, 2);
-*/
-
 // Client implements a client for a SQLite database.
 type Client struct {
 	db *sqlx.DB
@@ -113,7 +103,7 @@ func (c *Client) WriteLog(time time.Time, qtype uint16, question string, answers
 	defer c.mu.Unlock()
 	tx, err := c.db.Beginx()
 	if err != nil {
-		return nil
+		return err
 	}
 	defer rollback(tx)
 	if _, err := tx.Exec("INSERT OR IGNORE INTO rr_type (type) VALUES ($1)", qtype); err != nil {
