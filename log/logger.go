@@ -56,8 +56,8 @@ func (l *Logger) Close() error {
 	return nil
 }
 
-// LogDNS logs the given DNS query.
-func (l *Logger) LogDNS(qtype uint16, question, answer string) {
+// LogRequest logs the given DNS request.
+func (l *Logger) LogRequest(qtype uint16, question, answer string) {
 	if l.db == nil {
 		return
 	}

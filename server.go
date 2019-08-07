@@ -61,6 +61,7 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 		Handler:             server.hijack,
 		Resolvers:           config.DNS.Resolvers,
 		Logger:              logger,
+		LogMode:             config.DNS.logMode,
 		Network:             config.Resolver.Protocol,
 		Timeout:             config.Resolver.timeout,
 		CacheSize:           config.DNS.CacheSize,

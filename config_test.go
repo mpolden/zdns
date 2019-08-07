@@ -21,6 +21,7 @@ resolvers = [
 hijack_mode = "zero" # or: empty, hosts
 hosts_refresh_interval = "48h"
 log_database = "/tmp/log.db"
+log_mode = "all"
 
 [resolver]
 protocol = "tcp-tls" # or: "", "udp", "tcp"
@@ -77,6 +78,7 @@ hijack = false
 		{"DNS.Resolvers[1]", conf.DNS.Resolvers[1], "192.0.2.2:53"},
 		{"DNS.HijackMode", conf.DNS.HijackMode, "zero"},
 		{"DNS.LogDatabase", conf.DNS.LogDatabase, "/tmp/log.db"},
+		{"DNS.LogMode", conf.DNS.LogMode, "all"},
 		{"Resolver.Protocol", conf.Resolver.Protocol, "tcp-tls"},
 		{"Hosts[0].Source", conf.Hosts[0].URL, "file:///home/foo/hosts-good"},
 		{"Hosts[1].Source", conf.Hosts[1].URL, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},
@@ -152,6 +154,12 @@ timeout = "1s"
 	conf13 := baseConf + `
 cache_expiry_interval = "foo"
 `
+	conf14 := baseConf + `
+log_mode = "foo"
+
+[resolver]
+timeout = "1s"
+`
 	var tests = []struct {
 		in  string
 		err string
@@ -171,6 +179,7 @@ cache_expiry_interval = "foo"
 		{conf11, "file:///tmp/foo: timeout cannot be set for file url"},
 		{conf12, "[0.0.0.0 host1]: timeout cannot be set for inline hosts"},
 		{conf13, "invalid cache expiry interval: time: invalid duration foo"},
+		{conf14, "invalid log mode: foo"},
 	}
 	for i, tt := range tests {
 		var got string

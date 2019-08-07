@@ -46,6 +46,16 @@ func (c testClient) Exchange(m *dns.Msg, addr string) (*dns.Msg, time.Duration, 
 	return r.answer, time.Minute * 5, nil
 }
 
+type testLogger struct{ question string }
+
+func (l *testLogger) Close() error { return nil }
+
+func (l *testLogger) Printf(format string, v ...interface{}) {}
+
+func (l *testLogger) LogRequest(qtype uint16, question, answer string) {
+	l.question = question
+}
+
 func testProxy(t *testing.T) *Proxy {
 	return testProxyWithOptions(t, ProxyOptions{CacheExpiryInterval: time.Minute})
 }
@@ -196,6 +206,61 @@ func TestProxyWithCache(t *testing.T) {
 	got, ok := p.cache.Get(k)
 	if !ok {
 		t.Errorf("cache.Get(%d) = (%+v, %t), want (%+v, %t)", k, got, ok, m, !ok)
+	}
+}
+
+func TestProxyWithLogging(t *testing.T) {
+	log := &testLogger{}
+	p, err := NewProxy(ProxyOptions{Logger: log, CacheExpiryInterval: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	badHost := "badhost1."
+	goodHost := "goodhost1."
+	p.resolvers = []string{"resolver1"}
+	client := make(testClient)
+	p.client = client
+	reply := ReplyA(goodHost, net.ParseIP("192.0.2.1"))
+	m := dns.Msg{}
+	m.Id = dns.Id()
+	m.RecursionDesired = true
+	m.Answer = reply.rr
+	client["resolver1"] = &resolver{answer: &m}
+	var h Handler = func(r *Request) *Reply {
+		if r.Name == badHost {
+			return ReplyA(r.Name, net.IPv4zero)
+		}
+		return nil
+	}
+	p.handler = h
+
+	var tests = []struct {
+		question string
+		log      bool
+		logMode  int
+	}{
+		{badHost, true, LogAll},
+		{goodHost, true, LogAll},
+		{badHost, true, LogHijacked},
+		{goodHost, false, LogHijacked},
+		{badHost, false, LogDiscard},
+		{goodHost, false, LogDiscard},
+	}
+	for i, tt := range tests {
+		log.question = ""
+		p.logMode = tt.logMode
+		m.SetQuestion(tt.question, dns.TypeA)
+		if tt.question == badHost {
+			assertRR(t, p, &m, "0.0.0.0")
+		} else {
+			assertRR(t, p, &m, "192.0.2.1")
+		}
+		if tt.log && log.question != tt.question {
+			t.Errorf("#%d: question = %q, want %q", i, log.question, tt.question)
+		}
+		if !tt.log && log.question != "" {
+			t.Errorf("#%d: question = %q, want %q", i, log.question, "")
+		}
 	}
 }
 

@@ -22,12 +22,12 @@ func TestPrintf(t *testing.T) {
 	}
 }
 
-func TestLogDNS(t *testing.T) {
+func TestLogRequest(t *testing.T) {
 	logger, err := New(os.Stderr, "test: ", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	logger.LogDNS(1, "example.com.", "192.0.2.1")
+	logger.LogRequest(1, "example.com.", "192.0.2.1")
 	// Flush queue
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)

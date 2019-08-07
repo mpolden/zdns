@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
 )
 
@@ -32,6 +33,8 @@ type DNSOptions struct {
 	refreshInterval     time.Duration
 	Resolvers           []string
 	LogDatabase         string `toml:"log_database"`
+	LogMode             string `toml:"log_mode"`
+	logMode             int
 }
 
 // ResolverOptions controls the behaviour of resolvers.
@@ -151,6 +154,16 @@ func (c *Config) load() error {
 	}
 	if c.Resolver.timeout < 0 {
 		return fmt.Errorf("resolver timeout must be >= 0")
+	}
+	switch c.DNS.LogMode {
+	case "", "disabled":
+		c.DNS.logMode = dns.LogDiscard
+	case "all":
+		c.DNS.logMode = dns.LogAll
+	case "hijacked":
+		c.DNS.logMode = dns.LogHijacked
+	default:
+		return fmt.Errorf("invalid log mode: %s", c.DNS.LogMode)
 	}
 	return nil
 }

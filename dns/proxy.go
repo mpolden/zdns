@@ -7,14 +7,20 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
-	"github.com/mpolden/zdns/log"
 )
 
-// TypeA represents the resource record type A, an IPv4 address.
-const TypeA = dns.TypeA
-
-// TypeAAAA represents the resource record type AAAA, an IPv6 address.
-const TypeAAAA = dns.TypeAAAA
+const (
+	// TypeA represents the resource record type A, an IPv4 address.
+	TypeA = dns.TypeA
+	// TypeAAAA represents the resource record type AAAA, an IPv6 address.
+	TypeAAAA = dns.TypeAAAA
+	// LogDiscard disables logging of DNS requests
+	LogDiscard = iota
+	// LogAll logs all DNS requests
+	LogAll
+	// LogHijacked only logs hijacked DNS requets
+	LogHijacked
+)
 
 // Request represents a simplified DNS request.
 type Request struct {
@@ -33,7 +39,8 @@ type Proxy struct {
 	handler   Handler
 	resolvers []string
 	cache     *cache.Cache
-	logger    *log.Logger
+	logger    logger
+	logMode   int
 	server    *dns.Server
 	client    client
 }
@@ -42,7 +49,8 @@ type Proxy struct {
 type ProxyOptions struct {
 	Handler             Handler
 	Resolvers           []string
-	Logger              *log.Logger
+	Logger              logger
+	LogMode             int
 	Network             string
 	Timeout             time.Duration
 	CacheSize           int
@@ -51,6 +59,12 @@ type ProxyOptions struct {
 
 type client interface {
 	Exchange(*dns.Msg, string) (*dns.Msg, time.Duration, error)
+}
+
+type logger interface {
+	Printf(string, ...interface{})
+	LogRequest(uint16, string, string)
+	Close() error
 }
 
 // NewProxy creates a new DNS proxy.
@@ -63,6 +77,7 @@ func NewProxy(options ProxyOptions) (*Proxy, error) {
 		handler:   options.Handler,
 		resolvers: options.Resolvers,
 		logger:    options.Logger,
+		logMode:   options.LogMode,
 		cache:     cache,
 		client:    &dns.Client{Net: options.Network, Timeout: options.Timeout},
 	}, nil
@@ -131,26 +146,28 @@ func (p *Proxy) Close() error {
 	return p.cache.Close()
 }
 
-func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg) {
-	answer := ""
-	if len(msg.Answer) > 0 {
-		answer = msg.Answer[0].Header().Name
+func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
+	if p.logMode == LogAll || (hijacked && p.logMode == LogHijacked) {
+		answer := ""
+		if len(msg.Answer) > 0 {
+			answer = msg.Answer[0].Header().Name
+		}
+		p.logger.LogRequest(msg.Question[0].Qtype, msg.Question[0].Name, answer)
 	}
-	p.logger.LogDNS(msg.Question[0].Qtype, msg.Question[0].Name, answer)
 	_ = w.WriteMsg(msg)
 }
 
 // ServeDNS implements the dns.Handler interface.
 func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	if reply := p.reply(r); reply != nil {
-		p.writeMsg(w, reply)
+		p.writeMsg(w, reply, true)
 		return
 	}
 	q := r.Question[0]
 	key := cache.NewKey(q.Name, q.Qtype, q.Qclass)
 	if msg, ok := p.cache.Get(key); ok {
 		msg.SetReply(r)
-		p.writeMsg(w, msg)
+		p.writeMsg(w, msg, false)
 		return
 	}
 	for i, resolver := range p.resolvers {
@@ -166,7 +183,7 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			}
 		}
 		p.cache.Set(key, rr)
-		p.writeMsg(w, rr)
+		p.writeMsg(w, rr, false)
 		return
 	}
 	dns.HandleFailed(w, r)
