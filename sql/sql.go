@@ -53,10 +53,10 @@ type Client struct {
 
 // LogEntry represents an entry in the log.
 type LogEntry struct {
-	Question string `db:"question"`
-	Qtype    uint16 `db:"type"`
-	Answer   string `db:"answer"`
 	Time     int64  `db:"time"`
+	Qtype    uint16 `db:"type"`
+	Question string `db:"question"`
+	Answer   string `db:"answer"`
 }
 
 func rollback(tx *sqlx.Tx) { _ = tx.Rollback() }
