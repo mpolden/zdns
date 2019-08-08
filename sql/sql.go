@@ -79,6 +79,8 @@ func New(filename string) (*Client, error) {
 
 // ReadLog reads the n most recent entries from the log.
 func (c *Client) ReadLog(n int) ([]LogEntry, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	query := `
 SELECT time,
        type,

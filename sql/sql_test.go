@@ -2,6 +2,7 @@ package sql
 
 import (
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 )
@@ -115,5 +116,28 @@ func TestDeleteLogBefore(t *testing.T) {
 	answer := "192.0.2.1"
 	if want, got := 0, count(t, c, "SELECT COUNT(*) FROM rr_answer WHERE name = $1", answer); got != want {
 		t.Errorf("got %d rows for answer %q, want %d", got, question, want)
+	}
+}
+
+func TestInterleavedRW(t *testing.T) {
+	c := testClient()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	ch := make(chan bool, 10)
+	var err error
+	go func() {
+		defer wg.Done()
+		for range ch {
+			err = c.WriteLog(time.Now(), 1, "example.com.", "192.0.2.1")
+		}
+	}()
+	ch <- true
+	close(ch)
+	if _, err := c.ReadLog(1); err != nil {
+		t.Fatal(err)
+	}
+	wg.Wait()
+	if err != nil {
+		t.Fatal(err)
 	}
 }
