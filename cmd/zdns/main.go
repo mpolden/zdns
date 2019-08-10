@@ -30,7 +30,10 @@ func newServer(out io.Writer, confFile string) (*zdns.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	log, err := log.New(out, logPrefix, conf.DNS.LogDatabase)
+	log, err := log.New(out, logPrefix, log.RecordOptions{
+		Database: conf.DNS.LogDatabase,
+		TTL:      conf.DNS.LogTTL,
+	})
 	if err != nil {
 		return nil, err
 	}

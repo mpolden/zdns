@@ -35,6 +35,8 @@ type DNSOptions struct {
 	LogDatabase         string `toml:"log_database"`
 	LogMode             string `toml:"log_mode"`
 	logMode             int
+	LogTTLString        string `toml:"log_ttl"`
+	LogTTL              time.Duration
 }
 
 // ResolverOptions controls the behaviour of resolvers.
@@ -164,6 +166,13 @@ func (c *Config) load() error {
 		c.DNS.logMode = dns.LogHijacked
 	default:
 		return fmt.Errorf("invalid log mode: %s", c.DNS.LogMode)
+	}
+	if c.DNS.LogTTLString == "" {
+		c.DNS.LogTTLString = "0"
+	}
+	c.DNS.LogTTL, err = time.ParseDuration(c.DNS.LogTTLString)
+	if err != nil {
+		return fmt.Errorf("invalid log TTL: %s", c.DNS.LogTTLString)
 	}
 	return nil
 }

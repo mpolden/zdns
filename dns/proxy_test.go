@@ -48,20 +48,16 @@ func (c testClient) Exchange(m *dns.Msg, addr string) (*dns.Msg, time.Duration, 
 
 type testLogger struct{ question string }
 
-func (l *testLogger) Close() error { return nil }
-
-func (l *testLogger) Printf(format string, v ...interface{}) {}
-
-func (l *testLogger) LogRequest(qtype uint16, question, answer string) {
-	l.question = question
-}
+func (l *testLogger) Close() error                                 { return nil }
+func (l *testLogger) Printf(format string, v ...interface{})       {}
+func (l *testLogger) Record(qtype uint16, question, answer string) { l.question = question }
 
 func testProxy(t *testing.T) *Proxy {
 	return testProxyWithOptions(t, ProxyOptions{CacheExpiryInterval: time.Minute})
 }
 
 func testProxyWithOptions(t *testing.T, options ProxyOptions) *Proxy {
-	log, err := log.New(ioutil.Discard, "", "")
+	log, err := log.New(ioutil.Discard, "", log.RecordOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

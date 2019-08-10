@@ -22,6 +22,7 @@ hijack_mode = "zero" # or: empty, hosts
 hosts_refresh_interval = "48h"
 log_database = "/tmp/log.db"
 log_mode = "all"
+log_ttl = "72h"
 
 [resolver]
 protocol = "tcp-tls" # or: "", "udp", "tcp"
@@ -60,6 +61,7 @@ hijack = false
 		{"Resolver.Timeout", int(conf.Resolver.timeout), int(time.Second)},
 		{"DNS.RefreshInterval", int(conf.DNS.refreshInterval), int(48 * time.Hour)},
 		{"len(Hosts)", len(conf.Hosts), 3},
+		{"DNS.LogTTL", int(conf.DNS.LogTTL), int(72 * time.Hour)},
 	}
 	for i, tt := range intTests {
 		if tt.got != tt.want {
@@ -79,6 +81,7 @@ hijack = false
 		{"DNS.HijackMode", conf.DNS.HijackMode, "zero"},
 		{"DNS.LogDatabase", conf.DNS.LogDatabase, "/tmp/log.db"},
 		{"DNS.LogMode", conf.DNS.LogMode, "all"},
+		{"DNS.LogTTL", conf.DNS.LogTTLString, "72h"},
 		{"Resolver.Protocol", conf.Resolver.Protocol, "tcp-tls"},
 		{"Hosts[0].Source", conf.Hosts[0].URL, "file:///home/foo/hosts-good"},
 		{"Hosts[1].Source", conf.Hosts[1].URL, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"},

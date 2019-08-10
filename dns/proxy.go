@@ -63,7 +63,7 @@ type client interface {
 
 type logger interface {
 	Printf(string, ...interface{})
-	LogRequest(uint16, string, string)
+	Record(uint16, string, string)
 	Close() error
 }
 
@@ -152,7 +152,7 @@ func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 		if len(msg.Answer) > 0 {
 			answer = msg.Answer[0].Header().Name
 		}
-		p.logger.LogRequest(msg.Question[0].Qtype, msg.Question[0].Name, answer)
+		p.logger.Record(msg.Question[0].Qtype, msg.Question[0].Name, answer)
 	}
 	_ = w.WriteMsg(msg)
 }

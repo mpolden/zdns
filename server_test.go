@@ -102,7 +102,7 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 	if err := conf.load(); err != nil {
 		t.Fatal(err)
 	}
-	log, err := log.New(ioutil.Discard, "", "")
+	log, err := log.New(ioutil.Discard, "", log.RecordOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestNonFqdn(t *testing.T) {
 }
 
 func TestHijack(t *testing.T) {
-	log, _ := log.New(ioutil.Discard, "", "")
+	log, _ := log.New(ioutil.Discard, "", log.RecordOptions{})
 	s := &Server{
 		Config: Config{},
 		hosts: hosts.Hosts{
