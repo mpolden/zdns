@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"database/sql"
 	"sync"
 	"time"
 
@@ -99,6 +100,19 @@ LIMIT $1
 	return entries, err
 }
 
+func getOrInsert(tx *sqlx.Tx, table, column string, value interface{}) (int64, error) {
+	var id int64
+	err := tx.Get(&id, "SELECT id FROM "+table+" WHERE "+column+" = ?", value)
+	if err == sql.ErrNoRows {
+		res, err := tx.Exec("INSERT INTO "+table+" ("+column+") VALUES (?)", value)
+		if err != nil {
+			return 0, err
+		}
+		return res.LastInsertId()
+	}
+	return id, err
+}
+
 // WriteLog writes a new entry to the log.
 func (c *Client) WriteLog(time time.Time, qtype uint16, question string, answers ...string) error {
 	c.mu.Lock()
@@ -108,30 +122,21 @@ func (c *Client) WriteLog(time time.Time, qtype uint16, question string, answers
 		return err
 	}
 	defer rollback(tx)
-	if _, err := tx.Exec("INSERT OR IGNORE INTO rr_type (type) VALUES ($1)", qtype); err != nil {
+	typeID, err := getOrInsert(tx, "rr_type", "type", qtype)
+	if err != nil {
 		return err
 	}
-	typeID := 0
-	if err := tx.Get(&typeID, "SELECT id FROM rr_type WHERE type = $1 LIMIT 1", qtype); err != nil {
+	questionID, err := getOrInsert(tx, "rr_question", "name", question)
+	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec("INSERT OR IGNORE INTO rr_question (name) VALUES ($1)", question); err != nil {
-		return err
-	}
-	answerIDs := make([]int, 0, len(answers))
+	answerIDs := make([]int64, 0, len(answers))
 	for _, answer := range answers {
-		if _, err := tx.Exec("INSERT OR IGNORE INTO rr_answer (name) VALUES ($1)", answer); err != nil {
-			return err
-		}
-		answerID := 0
-		if err := tx.Get(&answerID, "SELECT id FROM rr_answer WHERE name = $1 LIMIT 1", answer); err != nil {
+		answerID, err := getOrInsert(tx, "rr_answer", "name", answer)
+		if err != nil {
 			return err
 		}
 		answerIDs = append(answerIDs, answerID)
-	}
-	questionID := 0
-	if err := tx.Get(&questionID, "SELECT id FROM rr_question WHERE name = $1 LIMIT 1", question); err != nil {
-		return err
 	}
 	res, err := tx.Exec("INSERT INTO log (time, rr_type_id, rr_question_id) VALUES ($1, $2, $3)", time.Unix(), typeID, questionID)
 	if err != nil {
