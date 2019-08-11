@@ -152,8 +152,13 @@ func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 		if len(msg.Answer) > 0 {
 			answer = msg.Answer[0].Header().Name
 		}
-		remoteAddr := net.ParseIP(w.RemoteAddr().String())
-		p.logger.Record(remoteAddr, msg.Question[0].Qtype, msg.Question[0].Name, answer)
+		ip, _, err := net.SplitHostPort(w.RemoteAddr().String())
+		if err != nil {
+			p.logger.Printf("failed to parse ip: %s", w.RemoteAddr().String())
+		} else {
+			remoteAddr := net.ParseIP(ip)
+			p.logger.Record(remoteAddr, msg.Question[0].Qtype, msg.Question[0].Name, answer)
+		}
 	}
 	_ = w.WriteMsg(msg)
 }

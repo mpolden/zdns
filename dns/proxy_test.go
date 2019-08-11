@@ -15,8 +15,10 @@ import (
 
 type dnsWriter struct{ lastReply *dns.Msg }
 
-func (w *dnsWriter) LocalAddr() net.Addr         { return nil }
-func (w *dnsWriter) RemoteAddr() net.Addr        { return &net.IPAddr{IP: net.IPv4(192, 0, 2, 100)} }
+func (w *dnsWriter) LocalAddr() net.Addr { return nil }
+func (w *dnsWriter) RemoteAddr() net.Addr {
+	return &net.UDPAddr{IP: net.IPv4(192, 0, 2, 100), Port: 50000}
+}
 func (w *dnsWriter) Write(b []byte) (int, error) { return 0, nil }
 func (w *dnsWriter) Close() error                { return nil }
 func (w *dnsWriter) TsigStatus() error           { return nil }
@@ -46,12 +48,16 @@ func (c testClient) Exchange(m *dns.Msg, addr string) (*dns.Msg, time.Duration, 
 	return r.answer, time.Minute * 5, nil
 }
 
-type testLogger struct{ question string }
+type testLogger struct {
+	question   string
+	remoteAddr net.IP
+}
 
 func (l *testLogger) Close() error                           { return nil }
 func (l *testLogger) Printf(format string, v ...interface{}) {}
 func (l *testLogger) Record(remoteAddr net.IP, qtype uint16, question, answer string) {
 	l.question = question
+	l.remoteAddr = remoteAddr
 }
 
 func testProxy(t *testing.T) *Proxy {
@@ -233,19 +239,21 @@ func TestProxyWithLogging(t *testing.T) {
 	p.handler = h
 
 	var tests = []struct {
-		question string
-		log      bool
-		logMode  int
+		question   string
+		remoteAddr net.IP
+		log        bool
+		logMode    int
 	}{
-		{badHost, true, LogAll},
-		{goodHost, true, LogAll},
-		{badHost, true, LogHijacked},
-		{goodHost, false, LogHijacked},
-		{badHost, false, LogDiscard},
-		{goodHost, false, LogDiscard},
+		{badHost, net.IPv4(192, 0, 2, 100), true, LogAll},
+		{goodHost, net.IPv4(192, 0, 2, 100), true, LogAll},
+		{badHost, net.IPv4(192, 0, 2, 100), true, LogHijacked},
+		{goodHost, net.IPv4(192, 0, 2, 100), false, LogHijacked},
+		{badHost, net.IPv4(192, 0, 2, 100), false, LogDiscard},
+		{goodHost, net.IPv4(192, 0, 2, 100), false, LogDiscard},
 	}
 	for i, tt := range tests {
 		log.question = ""
+		log.remoteAddr = nil
 		p.logMode = tt.logMode
 		m.SetQuestion(tt.question, dns.TypeA)
 		if tt.question == badHost {
@@ -253,11 +261,20 @@ func TestProxyWithLogging(t *testing.T) {
 		} else {
 			assertRR(t, p, &m, "192.0.2.1")
 		}
-		if tt.log && log.question != tt.question {
-			t.Errorf("#%d: question = %q, want %q", i, log.question, tt.question)
-		}
-		if !tt.log && log.question != "" {
-			t.Errorf("#%d: question = %q, want %q", i, log.question, "")
+		if tt.log {
+			if log.question != tt.question {
+				t.Errorf("#%d: question = %q, want %q", i, log.question, tt.question)
+			}
+			if log.remoteAddr.String() != tt.remoteAddr.String() {
+				t.Errorf("#%d: remoteAddr = %s, want %s", i, log.remoteAddr, tt.remoteAddr)
+			}
+		} else {
+			if log.question != "" {
+				t.Errorf("#%d: question = %q, want %q", i, log.question, "")
+			}
+			if log.remoteAddr != nil {
+				t.Errorf("#%d: remoteAddr = %v, want %v", i, log.remoteAddr, nil)
+			}
 		}
 	}
 }
