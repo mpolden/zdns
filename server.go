@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
 	"github.com/mpolden/zdns/log"
@@ -28,23 +29,25 @@ const (
 
 // A Server defines parameters for running a DNS server.
 type Server struct {
-	Config Config
-	hosts  hosts.Hosts
-	logger *log.Logger
-	proxy  *dns.Proxy
-	ticker *time.Ticker
-	done   chan bool
-	signal chan os.Signal
-	mu     sync.RWMutex
+	Config     Config
+	hosts      hosts.Hosts
+	logger     *log.Logger
+	proxy      *dns.Proxy
+	ticker     *time.Ticker
+	done       chan bool
+	signal     chan os.Signal
+	mu         sync.RWMutex
+	httpClient *http.Client
 }
 
 // NewServer returns a new server configured according to config.
 func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	server := &Server{
-		Config: config,
-		signal: make(chan os.Signal, 1),
-		done:   make(chan bool, 1),
-		logger: logger,
+		Config:     config,
+		signal:     make(chan os.Signal, 1),
+		done:       make(chan bool, 1),
+		logger:     logger,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 
 	// Start goroutines
@@ -76,7 +79,25 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	return server, nil
 }
 
-func readHosts(name string, timeout time.Duration) (hosts.Hosts, error) {
+func (s *Server) httpGet(url string) (io.ReadCloser, error) {
+	var body io.ReadCloser
+	policy := backoff.NewExponentialBackOff()
+	policy.MaxInterval = 2 * time.Second
+	policy.MaxElapsedTime = 30 * time.Second
+	err := backoff.Retry(func() error {
+		res, err := s.httpClient.Get(url)
+		if err == nil {
+			body = res.Body
+		}
+		return err
+	}, policy)
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func (s *Server) readHosts(name string, timeout time.Duration) (hosts.Hosts, error) {
 	url, err := url.Parse(name)
 	if err != nil {
 		return nil, err
@@ -90,12 +111,10 @@ func readHosts(name string, timeout time.Duration) (hosts.Hosts, error) {
 		}
 		rc = f
 	case "http", "https":
-		client := http.Client{Timeout: 10 * time.Second}
-		res, err := client.Get(url.String())
+		rc, err = s.httpGet(url.String())
 		if err != nil {
 			return nil, err
 		}
-		rc = res.Body
 	default:
 		return nil, fmt.Errorf("%s: invalid scheme: %s", url, url.Scheme)
 	}
@@ -157,7 +176,7 @@ func (s *Server) loadHosts() {
 		if h.URL != "" {
 			src = h.URL
 			var err error
-			hs1, err = readHosts(h.URL, h.timeout)
+			hs1, err = s.readHosts(h.URL, h.timeout)
 			if err != nil {
 				s.logger.Printf("failed to read hosts from %s: %s", h.URL, err)
 				continue
