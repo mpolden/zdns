@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"net"
 	"reflect"
 	"sync"
 	"testing"
@@ -13,22 +14,23 @@ type rowCount struct {
 }
 
 var tests = []struct {
-	question  string
-	qtype     uint16
-	answer    string
-	t         time.Time
-	rowCounts []rowCount
+	question   string
+	qtype      uint16
+	answer     string
+	t          time.Time
+	remoteAddr net.IP
+	rowCounts  []rowCount
 }{
-	{"foo.example.com", 1, "192.0.2.1", time.Date(2019, 6, 15, 22, 15, 10, 0, time.UTC),
-		[]rowCount{{"rr_question", 1}, {"rr_answer", 1}, {"log", 1}, {"rr_type", 1}}},
-	{"foo.example.com", 1, "192.0.2.1", time.Date(2019, 6, 15, 22, 16, 20, 0, time.UTC),
-		[]rowCount{{"rr_question", 1}, {"rr_answer", 1}, {"log", 2}, {"rr_type", 1}}},
-	{"bar.example.com", 1, "192.0.2.2", time.Date(2019, 6, 15, 22, 17, 30, 0, time.UTC),
-		[]rowCount{{"rr_question", 2}, {"rr_answer", 2}, {"log", 3}, {"rr_type", 1}}},
-	{"bar.example.com", 1, "192.0.2.2", time.Date(2019, 6, 15, 22, 18, 40, 0, time.UTC),
-		[]rowCount{{"rr_question", 2}, {"rr_answer", 2}, {"log", 4}, {"rr_type", 1}}},
-	{"bar.example.com", 28, "2001:db8::1", time.Date(2019, 6, 15, 23, 4, 40, 0, time.UTC),
-		[]rowCount{{"rr_question", 2}, {"rr_answer", 3}, {"log", 5}, {"rr_type", 2}}},
+	{"foo.example.com", 1, "192.0.2.1", time.Date(2019, 6, 15, 22, 15, 10, 0, time.UTC), net.IPv4(192, 0, 2, 100),
+		[]rowCount{{"rr_question", 1}, {"rr_answer", 1}, {"log", 1}, {"rr_type", 1}, {"remote_addr", 1}}},
+	{"foo.example.com", 1, "192.0.2.1", time.Date(2019, 6, 15, 22, 16, 20, 0, time.UTC), net.IPv4(192, 0, 2, 100),
+		[]rowCount{{"rr_question", 1}, {"rr_answer", 1}, {"log", 2}, {"rr_type", 1}, {"remote_addr", 1}}},
+	{"bar.example.com", 1, "192.0.2.2", time.Date(2019, 6, 15, 22, 17, 30, 0, time.UTC), net.IPv4(192, 0, 2, 101),
+		[]rowCount{{"rr_question", 2}, {"rr_answer", 2}, {"log", 3}, {"rr_type", 1}, {"remote_addr", 2}}},
+	{"bar.example.com", 1, "192.0.2.2", time.Date(2019, 6, 15, 22, 18, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+		[]rowCount{{"rr_question", 2}, {"rr_answer", 2}, {"log", 4}, {"rr_type", 1}, {"remote_addr", 3}}},
+	{"bar.example.com", 28, "2001:db8::1", time.Date(2019, 6, 15, 23, 4, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+		[]rowCount{{"rr_question", 2}, {"rr_answer", 3}, {"log", 5}, {"rr_type", 2}, {"remote_addr", 3}}},
 }
 
 func testClient() *Client {
@@ -50,8 +52,8 @@ func count(t *testing.T, client *Client, query string, args ...interface{}) int 
 func TestWriteLog(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.qtype, tt.question, tt.answer); err != nil {
-			t.Errorf("#%d: WriteLog(%q, %d, %q, %q) = %s, want nil", i, tt.t, tt.qtype, tt.question, tt.answer, err)
+		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answer); err != nil {
+			t.Errorf("#%d: WriteLog(%q, %s, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.qtype, tt.question, tt.answer, err)
 		}
 		for _, rowCount := range tt.rowCounts {
 			rows := count(t, c, "SELECT COUNT(*) FROM "+rowCount.table+" LIMIT 1")
@@ -65,16 +67,16 @@ func TestWriteLog(t *testing.T) {
 func TestReadLog(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.qtype, tt.question, tt.answer); err != nil {
-			t.Fatalf("#%d: WriteLog(%q, %d, %q, %q) = %s, want nil", i, tt.t, tt.qtype, tt.question, tt.answer, err)
+		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answer); err != nil {
+			t.Fatalf("#%d: WriteLog(%q, %s, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.qtype, tt.question, tt.answer, err)
 		}
 	}
 	entries := []LogEntry{
-		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::1", Time: 1560639880},
-		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637120},
-		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637050},
-		{Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636980},
-		{Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636910},
+		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::1", Time: 1560639880, RemoteAddr: net.IPv4(192, 0, 2, 102)},
+		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637120, RemoteAddr: net.IPv4(192, 0, 2, 102)},
+		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637050, RemoteAddr: net.IPv4(192, 0, 2, 101)},
+		{Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636980, RemoteAddr: net.IPv4(192, 0, 2, 100)},
+		{Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636910, RemoteAddr: net.IPv4(192, 0, 2, 100)},
 	}
 	for _, n := range []int{1, len(entries)} {
 		want := entries[:n]
@@ -88,8 +90,8 @@ func TestReadLog(t *testing.T) {
 func TestDeleteLogBefore(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.qtype, tt.question, tt.answer); err != nil {
-			t.Fatalf("#%d: WriteLog(%s, %q, %q) = %s, want nil", i, tt.t, tt.question, tt.answer, err)
+		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answer); err != nil {
+			t.Fatalf("#%d: WriteLog(%s, %s, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.question, tt.answer, err)
 		}
 	}
 	u := tests[1].t.Add(time.Second)
@@ -98,9 +100,9 @@ func TestDeleteLogBefore(t *testing.T) {
 	}
 
 	want := []LogEntry{
-		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::1", Time: 1560639880},
-		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637120},
-		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637050},
+		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::1", Time: 1560639880, RemoteAddr: net.IPv4(192, 0, 2, 102)},
+		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637120, RemoteAddr: net.IPv4(192, 0, 2, 102)},
+		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637050, RemoteAddr: net.IPv4(192, 0, 2, 101)},
 	}
 	n := 10
 	got, err := c.ReadLog(n)
@@ -128,7 +130,7 @@ func TestInterleavedRW(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for range ch {
-			err = c.WriteLog(time.Now(), 1, "example.com.", "192.0.2.1")
+			err = c.WriteLog(time.Now(), net.IPv4(127, 0, 0, 1), 1, "example.com.", "192.0.2.1")
 		}
 	}()
 	ch <- true

@@ -3,6 +3,7 @@ package log
 import (
 	"io"
 	"log"
+	"net"
 	"sync"
 	"time"
 
@@ -28,10 +29,11 @@ type RecordOptions struct {
 
 // Entry represents a DNS request log entry.
 type Entry struct {
-	Time     time.Time
-	Qtype    uint16
-	Question string
-	Answer   string
+	Time       time.Time
+	RemoteAddr net.IP
+	Qtype      uint16
+	Question   string
+	Answer     string
 }
 
 type maintainer struct {
@@ -104,15 +106,16 @@ func (l *Logger) Close() error {
 }
 
 // Record records the given DNS request to the log database.
-func (l *Logger) Record(qtype uint16, question, answer string) {
+func (l *Logger) Record(remoteAddr net.IP, qtype uint16, question, answer string) {
 	if l.db == nil {
 		return
 	}
 	l.queue <- Entry{
-		Time:     l.now(),
-		Qtype:    qtype,
-		Question: question,
-		Answer:   answer,
+		Time:       l.now(),
+		RemoteAddr: remoteAddr,
+		Qtype:      qtype,
+		Question:   question,
+		Answer:     answer,
 	}
 }
 
@@ -125,10 +128,11 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 	entries := make([]Entry, len(logEntries))
 	for i, le := range logEntries {
 		entries[i] = Entry{
-			Time:     time.Unix(le.Time, 0),
-			Qtype:    le.Qtype,
-			Question: le.Question,
-			Answer:   le.Answer,
+			Time:       time.Unix(le.Time, 0),
+			RemoteAddr: le.RemoteAddr,
+			Qtype:      le.Qtype,
+			Question:   le.Question,
+			Answer:     le.Answer,
 		}
 	}
 	return entries, nil
@@ -137,7 +141,7 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 func (l *Logger) readQueue() {
 	defer l.wg.Done()
 	for entry := range l.queue {
-		if err := l.db.WriteLog(entry.Time, entry.Qtype, entry.Question, entry.Answer); err != nil {
+		if err := l.db.WriteLog(entry.Time, entry.RemoteAddr, entry.Qtype, entry.Question, entry.Answer); err != nil {
 			l.Printf("write failed: %+v: %s", entry, err)
 		}
 	}

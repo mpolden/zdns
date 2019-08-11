@@ -28,11 +28,19 @@ CREATE TABLE IF NOT EXISTS rr_type (
   CONSTRAINT        type_unique       UNIQUE(type)
 );
 
+CREATE TABLE IF NOT EXISTS remote_addr (
+  id                INTEGER           PRIMARY KEY,
+  addr              BLOB              NOT NULL,
+  CONSTRAINT        addr_unique       UNIQUE(addr)
+);
+
 CREATE TABLE IF NOT EXISTS log (
   id                INTEGER           PRIMARY KEY,
   time              INTEGER           NOT NULL,
+  remote_addr_id    INTEGER           NOT NULL,
   rr_type_id        INTEGER           NOT NULL,
   rr_question_id    INTEGER           NOT NULL,
+  FOREIGN KEY       (remote_addr_id)  REFERENCES remote_addr(id),
   FOREIGN KEY       (rr_question_id)  REFERENCES rr_question(id),
   FOREIGN KEY       (rr_type_id)      REFERENCES rr_type(id)
 );
@@ -54,10 +62,11 @@ type Client struct {
 
 // LogEntry represents an entry in the log.
 type LogEntry struct {
-	Time     int64  `db:"time"`
-	Qtype    uint16 `db:"type"`
-	Question string `db:"question"`
-	Answer   string `db:"answer"`
+	Time       int64  `db:"time"`
+	RemoteAddr []byte `db:"remote_addr"`
+	Qtype      uint16 `db:"type"`
+	Question   string `db:"question"`
+	Answer     string `db:"answer"`
 }
 
 func rollback(tx *sqlx.Tx) { _ = tx.Rollback() }
@@ -84,10 +93,12 @@ func (c *Client) ReadLog(n int) ([]LogEntry, error) {
 	defer c.mu.RUnlock()
 	query := `
 SELECT time,
+       remote_addr.addr AS remote_addr,
        type,
        rr_question.name AS question,
        rr_answer.name AS answer
 FROM log
+INNER JOIN remote_addr ON remote_addr.id = log.remote_addr_id
 INNER JOIN rr_question ON rr_question.id = rr_question_id
 INNER JOIN rr_type ON rr_type.id = rr_type_id
 INNER JOIN log_rr_answer ON log_rr_answer.log_id = log.id
@@ -114,7 +125,7 @@ func getOrInsert(tx *sqlx.Tx, table, column string, value interface{}) (int64, e
 }
 
 // WriteLog writes a new entry to the log.
-func (c *Client) WriteLog(time time.Time, qtype uint16, question string, answers ...string) error {
+func (c *Client) WriteLog(time time.Time, remoteAddr []byte, qtype uint16, question string, answers ...string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	tx, err := c.db.Beginx()
@@ -130,6 +141,10 @@ func (c *Client) WriteLog(time time.Time, qtype uint16, question string, answers
 	if err != nil {
 		return err
 	}
+	remoteAddrID, err := getOrInsert(tx, "remote_addr", "addr", remoteAddr)
+	if err != nil {
+		return err
+	}
 	answerIDs := make([]int64, 0, len(answers))
 	for _, answer := range answers {
 		answerID, err := getOrInsert(tx, "rr_answer", "name", answer)
@@ -138,7 +153,7 @@ func (c *Client) WriteLog(time time.Time, qtype uint16, question string, answers
 		}
 		answerIDs = append(answerIDs, answerID)
 	}
-	res, err := tx.Exec("INSERT INTO log (time, rr_type_id, rr_question_id) VALUES ($1, $2, $3)", time.Unix(), typeID, questionID)
+	res, err := tx.Exec("INSERT INTO log (time, remote_addr_id, rr_type_id, rr_question_id) VALUES ($1, $2, $3, $4)", time.Unix(), remoteAddrID, typeID, questionID)
 	if err != nil {
 		return err
 	}
@@ -176,6 +191,9 @@ func (c *Client) DeleteLogBefore(t time.Time) (err error) {
 		return err
 	}
 	if _, err := tx.Exec("DELETE FROM rr_answer WHERE id NOT IN (SELECT rr_answer_id FROM log_rr_answer)"); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("DELETE FROM remote_addr WHERE id NOT IN (SELECT remote_addr_id FROM log)"); err != nil {
 		return err
 	}
 	return tx.Commit()

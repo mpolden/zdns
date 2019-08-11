@@ -16,7 +16,7 @@ import (
 type dnsWriter struct{ lastReply *dns.Msg }
 
 func (w *dnsWriter) LocalAddr() net.Addr         { return nil }
-func (w *dnsWriter) RemoteAddr() net.Addr        { return nil }
+func (w *dnsWriter) RemoteAddr() net.Addr        { return &net.IPAddr{IP: net.IPv4(192, 0, 2, 100)} }
 func (w *dnsWriter) Write(b []byte) (int, error) { return 0, nil }
 func (w *dnsWriter) Close() error                { return nil }
 func (w *dnsWriter) TsigStatus() error           { return nil }
@@ -48,9 +48,11 @@ func (c testClient) Exchange(m *dns.Msg, addr string) (*dns.Msg, time.Duration, 
 
 type testLogger struct{ question string }
 
-func (l *testLogger) Close() error                                 { return nil }
-func (l *testLogger) Printf(format string, v ...interface{})       {}
-func (l *testLogger) Record(qtype uint16, question, answer string) { l.question = question }
+func (l *testLogger) Close() error                           { return nil }
+func (l *testLogger) Printf(format string, v ...interface{}) {}
+func (l *testLogger) Record(remoteAddr net.IP, qtype uint16, question, answer string) {
+	l.question = question
+}
 
 func testProxy(t *testing.T) *Proxy {
 	return testProxyWithOptions(t, ProxyOptions{CacheExpiryInterval: time.Minute})

@@ -1,6 +1,7 @@
 package log
 
 import (
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ func TestRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	logger.Record(1, "example.com.", "192.0.2.1")
+	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1")
 	// Flush queue
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)
@@ -36,7 +37,7 @@ func TestLogPruning(t *testing.T) {
 	}
 	tt := time.Now()
 	logger.now = func() time.Time { return tt }
-	logger.Record(1, "example.com.", "192.0.2.1")
+	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1")
 
 	// Wait until queue is flushed
 	ts := time.Now()
