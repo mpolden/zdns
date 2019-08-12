@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v3"
 	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
 	"github.com/mpolden/zdns/log"
