@@ -16,6 +16,7 @@ type Cache struct {
 	now        func() time.Time
 	maintainer *maintainer
 	mu         sync.RWMutex
+	wg         sync.WaitGroup
 	entries    map[uint32]*value
 	keys       []uint32
 }
@@ -31,10 +32,12 @@ func maintain(cache *Cache, interval time.Duration) {
 		done:     make(chan bool),
 	}
 	cache.maintainer = m
+	cache.wg.Add(1)
 	go m.run(cache)
 }
 
 func (m *maintainer) run(cache *Cache) {
+	defer cache.wg.Done()
 	ticker := time.NewTicker(m.interval)
 	for {
 		select {
@@ -81,6 +84,7 @@ func NewKey(name string, qtype, qclass uint16) uint32 {
 // Close closes the cache.
 func (c *Cache) Close() error {
 	c.maintainer.done <- true
+	c.wg.Wait()
 	return nil
 }
 
