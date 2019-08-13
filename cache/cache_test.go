@@ -67,7 +67,8 @@ func awaitExpiry(t *testing.T, c *Cache, k uint32) {
 }
 
 func TestCache(t *testing.T) {
-	m := newA("foo.", 60, net.ParseIP("192.0.2.1"))
+	msg := newA("foo.", 60, net.ParseIP("192.0.2.1"))
+	msgWithZeroTTL := newA("bar.", 0, net.ParseIP("192.0.2.2"))
 	tt := date(2019, 1, 1)
 	c, err := New(100, time.Duration(10*time.Millisecond))
 	if err != nil {
@@ -79,10 +80,11 @@ func TestCache(t *testing.T) {
 		createdAt, queriedAt time.Time
 		ok                   bool
 	}{
-		{m, tt, tt, true},                        // Not expired when query time == create time
-		{m, tt, tt.Add(30 * time.Second), true},  // Not expired when below TTL
-		{m, tt, tt.Add(60 * time.Second), true},  // Not expired until TTL exceeds
-		{m, tt, tt.Add(61 * time.Second), false}, // Expired
+		{msg, tt, tt, true},                        // Not expired when query time == create time
+		{msg, tt, tt.Add(30 * time.Second), true},  // Not expired when below TTL
+		{msg, tt, tt.Add(60 * time.Second), true},  // Not expired until TTL exceeds
+		{msg, tt, tt.Add(61 * time.Second), false}, // Expired
+		{msgWithZeroTTL, tt, tt, false},            // 0 TTL is not cached
 	}
 	for i, tt := range tests {
 		c.now = func() time.Time { return tt.createdAt }

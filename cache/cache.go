@@ -97,9 +97,12 @@ func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
 }
 
 // Set associated key k with the DNS message v. Message v will expire from the cache according to its TTL. Setting a
-// new key in a cache that has  its maximum size will remove the first key.
+// new key in a cache that has reached its maximum size will remove the first key.
 func (c *Cache) Set(k uint32, v *dns.Msg) {
 	if c.maxSize == 0 {
+		return
+	}
+	if !isCacheable(v) {
 		return
 	}
 	now := c.now()
@@ -131,6 +134,34 @@ func (c *Cache) isExpired(v *value) bool {
 		}
 	}
 	return false
+}
+
+func min(x, y uint32) uint32 {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+func minTTL(m *dns.Msg) time.Duration {
+	var ttl uint32 = 1<<32 - 1 //  avoids importing math.MaxUint32
+	for _, answer := range m.Answer {
+		ttl = min(answer.Header().Ttl, ttl)
+	}
+	for _, ns := range m.Ns {
+		ttl = min(ns.Header().Ttl, ttl)
+	}
+	for _, extra := range m.Extra {
+		ttl = min(extra.Header().Ttl, ttl)
+	}
+	return time.Duration(ttl) * time.Second
+}
+
+func isCacheable(m *dns.Msg) bool {
+	if minTTL(m) == 0 {
+		return false
+	}
+	return true
 }
 
 func ttl(rr dns.RR) time.Duration {
