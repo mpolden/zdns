@@ -69,6 +69,9 @@ func awaitExpiry(t *testing.T, c *Cache, k uint32) {
 func TestCache(t *testing.T) {
 	msg := newA("foo.", 60, net.ParseIP("192.0.2.1"))
 	msgWithZeroTTL := newA("bar.", 0, net.ParseIP("192.0.2.2"))
+	msgFailure := newA("baz.", 60, net.ParseIP("192.0.2.2"))
+	msgFailure.Rcode = dns.RcodeServerFailure
+
 	tt := date(2019, 1, 1)
 	c, err := New(100, time.Duration(10*time.Millisecond))
 	if err != nil {
@@ -85,6 +88,7 @@ func TestCache(t *testing.T) {
 		{msg, tt, tt.Add(60 * time.Second), true},  // Not expired until TTL exceeds
 		{msg, tt, tt.Add(61 * time.Second), false}, // Expired
 		{msgWithZeroTTL, tt, tt, false},            // 0 TTL is not cached
+		{msgFailure, tt, tt, false},                // Non-cacheable rcode
 	}
 	for i, tt := range tests {
 		c.now = func() time.Time { return tt.createdAt }

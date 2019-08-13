@@ -161,7 +161,7 @@ func isCacheable(m *dns.Msg) bool {
 	if minTTL(m) == 0 {
 		return false
 	}
-	return true
+	return m.Rcode == dns.RcodeSuccess || m.Rcode == dns.RcodeNameError
 }
 
 func ttl(rr dns.RR) time.Duration {
