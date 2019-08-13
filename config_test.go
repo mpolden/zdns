@@ -168,7 +168,6 @@ timeout = "1s"
 		err string
 	}{
 
-		{"", "invalid listening address: "},
 		{conf1, "cache size must be >= 0"},
 		{conf2, "invalid hijack mode: foo"},
 		{conf3, "invalid refresh interval: time: invalid duration foo"},

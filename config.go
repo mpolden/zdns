@@ -56,6 +56,17 @@ type Hosts struct {
 	timeout time.Duration
 }
 
+func newConfig() Config {
+	c := Config{}
+	c.DNS.Listen = "127.0.0.1:53"
+	c.DNS.Protocol = "udp"
+	c.DNS.CacheSize = 1024
+	c.DNS.RefreshInterval = "48h"
+	c.Resolver.Timeout = "5s"
+	c.Resolver.Protocol = "udp"
+	return c
+}
+
 func (c *Config) load() error {
 	var err error
 	if c.DNS.Listen == "" {
@@ -139,11 +150,8 @@ func (c *Config) load() error {
 			return fmt.Errorf("invalid resolver: %s", err)
 		}
 	}
-	switch c.Resolver.Protocol {
-	case "udp":
-		c.Resolver.Protocol = ""
-	case "":
-		c.Resolver.Protocol = "tcp-tls"
+	if c.Resolver.Protocol == "udp" {
+		c.Resolver.Protocol = "" // Empty means UDP when passed to dns.ListenAndServe
 	}
 	switch c.Resolver.Protocol {
 	case "", "tcp", "tcp-tls":
@@ -156,6 +164,9 @@ func (c *Config) load() error {
 	}
 	if c.Resolver.timeout < 0 {
 		return fmt.Errorf("resolver timeout must be >= 0")
+	}
+	if c.Resolver.timeout == 0 {
+		c.Resolver.timeout = 5 * time.Second
 	}
 	switch c.DNS.LogMode {
 	case "", "disabled":
@@ -179,7 +190,7 @@ func (c *Config) load() error {
 
 // ReadConfig reads a zdns configuration from reader r.
 func ReadConfig(r io.Reader) (Config, error) {
-	var conf Config
+	conf := newConfig()
 	_, err := toml.DecodeReader(r, &conf)
 	if err != nil {
 		return Config{}, err
