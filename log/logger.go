@@ -59,7 +59,7 @@ func New(w io.Writer, prefix string, options RecordOptions) (*Logger, error) {
 	logger.wg.Add(1)
 	go logger.readQueue()
 	if options.TTL > 0 {
-		if options.ExpiryInterval == 0 {
+		if options.ExpiryInterval <= 0 {
 			options.ExpiryInterval = 10 * time.Minute
 		}
 		maintain(logger, options.ExpiryInterval, options.TTL)

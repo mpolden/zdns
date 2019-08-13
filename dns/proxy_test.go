@@ -60,9 +60,7 @@ func (l *testLogger) Record(remoteAddr net.IP, qtype uint16, question, answer st
 	l.remoteAddr = remoteAddr
 }
 
-func testProxy(t *testing.T) *Proxy {
-	return testProxyWithOptions(t, ProxyOptions{CacheExpiryInterval: time.Minute})
-}
+func testProxy(t *testing.T) *Proxy { return testProxyWithOptions(t, ProxyOptions{}) }
 
 func testProxyWithOptions(t *testing.T, options ProxyOptions) *Proxy {
 	log, err := log.New(ioutil.Discard, "", log.RecordOptions{})
@@ -215,7 +213,7 @@ func TestProxyWithCache(t *testing.T) {
 
 func TestProxyWithLogging(t *testing.T) {
 	log := &testLogger{}
-	p, err := NewProxy(ProxyOptions{Logger: log, CacheExpiryInterval: time.Minute})
+	p, err := NewProxy(ProxyOptions{Logger: log})
 	if err != nil {
 		t.Fatal(err)
 	}

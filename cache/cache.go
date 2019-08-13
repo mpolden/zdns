@@ -57,8 +57,8 @@ func New(maxSize int, expiryInterval time.Duration) (*Cache, error) {
 	if maxSize < 0 {
 		return nil, fmt.Errorf("invalid cache size: %d", maxSize)
 	}
-	if expiryInterval <= 0 {
-		return nil, fmt.Errorf("invalid expiry interval: %d", expiryInterval)
+	if expiryInterval == 0 {
+		expiryInterval = 10 * time.Minute
 	}
 	cache := &Cache{
 		now:     time.Now,
