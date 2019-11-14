@@ -1,3 +1,7 @@
+XGOARCH := amd64
+XGOOS := linux
+XBIN := $(XGOOS)_$(XGOARCH)/zdns
+
 all: lint test install
 
 test:
@@ -24,9 +28,16 @@ install-tools:
 	cd tools && \
 		go list -tags tools -f '{{range $$i := .Imports}}{{printf "%s\n" $$i}}{{end}}' | xargs go install
 
-install-embedded:
-	env GOOS=linux GOARCH=mipsle go install -ldflags '-s -w' ./...
-	upx -q $(GOPATH)/bin/linux_mipsle/zdns
-
 install:
 	go install ./...
+
+xinstall:
+	env GOOS=$(XGOOS) GOARCH=$(XGOARCH) CGO_ENABLED=1 \
+CC=x86_64-linux-musl-gcc go install -ldflags '-extldflags "-static"' ./...
+
+publish:
+ifndef DEST_PATH
+	$(error DEST_PATH must be set when publishing)
+endif
+	rsync -a $(GOPATH)/bin/$(XBIN) $(DEST_PATH)/$(XBIN)
+	@sha256sum $(GOPATH)/bin/$(XBIN)
