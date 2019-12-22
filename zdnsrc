@@ -28,8 +28,8 @@
 
 # Configure how to answer hijacked DNS requests.
 # Possible values:
-# zero: Answer A quiries with the IPv4 zero address (0.0.0.0).
-#       Answer AAAA requests with the IPv6 zero address (::).
+# zero: Answer A request with the IPv4 zero address (0.0.0.0).
+#       Answer AAAA request with the IPv6 zero address (::).
 #       This is the default.
 # empty: Answer all hijacked requests with an empty answer.
 # hosts: Answer hijacked requests from inline hosts (see below).
