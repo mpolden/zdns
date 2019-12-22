@@ -76,8 +76,8 @@ func New(maxSize int, expiryInterval time.Duration) (*Cache, error) {
 func NewKey(name string, qtype, qclass uint16) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(name))
-	_ = binary.Write(h, binary.LittleEndian, qtype)
-	_ = binary.Write(h, binary.LittleEndian, qclass)
+	binary.Write(h, binary.LittleEndian, qtype)
+	binary.Write(h, binary.LittleEndian, qclass)
 	return h.Sum32()
 }
 

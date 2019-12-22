@@ -69,8 +69,6 @@ type LogEntry struct {
 	Answer     string `db:"answer"`
 }
 
-func rollback(tx *sqlx.Tx) { _ = tx.Rollback() }
-
 // New creates a new database client for given filename.
 func New(filename string) (*Client, error) {
 	db, err := sqlx.Connect("sqlite3", filename)
@@ -132,7 +130,7 @@ func (c *Client) WriteLog(time time.Time, remoteAddr []byte, qtype uint16, quest
 	if err != nil {
 		return err
 	}
-	defer rollback(tx)
+	defer tx.Rollback()
 	typeID, err := getOrInsert(tx, "rr_type", "type", qtype)
 	if err != nil {
 		return err
@@ -177,7 +175,7 @@ func (c *Client) DeleteLogBefore(t time.Time) (err error) {
 	if err != nil {
 		return nil
 	}
-	defer rollback(tx)
+	defer tx.Rollback()
 	if _, err := tx.Exec("DELETE FROM log_rr_answer WHERE log_id IN (SELECT id FROM log WHERE time < $1)", t.Unix()); err != nil {
 		return err
 	}

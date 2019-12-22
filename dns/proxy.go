@@ -160,7 +160,7 @@ func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 			p.logger.Record(remoteAddr, msg.Question[0].Qtype, msg.Question[0].Name, answer)
 		}
 	}
-	_ = w.WriteMsg(msg)
+	w.WriteMsg(msg)
 }
 
 // ServeDNS implements the dns.Handler interface.
