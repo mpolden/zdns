@@ -13,16 +13,13 @@ vet:
 golint: install-tools
 	golint ./...
 
-errcheck: install-tools
-	errcheck ./...
-
 staticcheck: install-tools
 	staticcheck ./...
 
 fmt:
 	bash -c "diff --line-format='%L' <(echo -n) <(gofmt -d -s .)"
 
-lint: fmt vet golint errcheck staticcheck
+lint: fmt vet golint staticcheck
 
 install-tools:
 	cd tools && \
