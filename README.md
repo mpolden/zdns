@@ -1,10 +1,12 @@
 # zdns
 
 `zdns` is a privacy-focused [DNS
-sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole).
+resolver](https://en.wikipedia.org/wiki/Domain_Name_System#DNS_resolvers) and
+[DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole).
 
-Its primary focus is to allow easy filtering of unwanted content, protect
-regular DNS requests, be portable and easy to configure.
+Its primary focus is to allow easy filtering of unwanted content at the
+DNS-level, forward upstream requests securely, be portable and easy to
+configure.
 
 ## Features
 
