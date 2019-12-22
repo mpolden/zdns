@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
-	"syscall"
 	"testing"
 	"time"
 
@@ -127,23 +126,6 @@ func TestLoadHosts(t *testing.T) {
 	got := s.hosts
 	if !reflect.DeepEqual(want, got) {
 		t.Errorf("got %+v, want %+v", got, want)
-	}
-}
-
-func TestReloadHostsOnSignal(t *testing.T) {
-	s, cleanup := testServer(t, 0)
-	defer cleanup()
-	oldHosts := s.hosts
-	if oldHosts == nil {
-		t.Fatal("expected matcher to be initialized")
-	}
-	s.signal <- syscall.SIGHUP
-	ts := time.Now()
-	for &s.hosts == &oldHosts {
-		time.Sleep(10 * time.Millisecond)
-		if time.Since(ts) > 2*time.Second {
-			t.Fatal("timed out waiting hosts to load")
-		}
 	}
 }
 

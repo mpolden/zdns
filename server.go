@@ -7,9 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/cenkalti/backoff/v3"
@@ -35,7 +33,6 @@ type Server struct {
 	proxy      *dns.Proxy
 	ticker     *time.Ticker
 	done       chan bool
-	signal     chan os.Signal
 	mu         sync.RWMutex
 	httpClient *http.Client
 }
@@ -44,7 +41,6 @@ type Server struct {
 func NewServer(logger *log.Logger, config Config) (*Server, error) {
 	server := &Server{
 		Config:     config,
-		signal:     make(chan os.Signal, 1),
 		done:       make(chan bool, 1),
 		logger:     logger,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
@@ -55,8 +51,6 @@ func NewServer(logger *log.Logger, config Config) (*Server, error) {
 		server.ticker = time.NewTicker(t)
 		go server.reloadHosts()
 	}
-	signal.Notify(server.signal)
-	go server.readSignal()
 
 	// Configure proxy
 	var err error
@@ -133,29 +127,6 @@ func nonFqdn(s string) string {
 	return s
 }
 
-func (s *Server) readSignal() {
-	for {
-		select {
-		case <-s.done:
-			signal.Stop(s.signal)
-			return
-		case sig := <-s.signal:
-			switch sig {
-			case syscall.SIGHUP:
-				s.logger.Printf("received signal %s: reloading filters", sig)
-				s.loadHosts()
-			case syscall.SIGTERM, syscall.SIGINT:
-				s.logger.Printf("received signal %s: shutting down", sig)
-				if err := s.Close(); err != nil {
-					s.logger.Printf("close failed: %s", err)
-				}
-			default:
-				s.logger.Printf("received signal %s: ignoring", sig)
-			}
-		}
-	}
-}
-
 func (s *Server) reloadHosts() {
 	for {
 		select {
@@ -206,12 +177,12 @@ func (s *Server) loadHosts() {
 	s.logger.Printf("loaded %d hosts in total", len(hs))
 }
 
+// Reload reloads the configuration of this server
+func (s *Server) Reload() { s.loadHosts() }
+
 // Close terminates all active operations and shuts down the DNS server.
 func (s *Server) Close() error {
 	if s.ticker != nil {
-		s.done <- true
-	}
-	if s.signal != nil {
 		s.done <- true
 	}
 	if s.proxy != nil {
@@ -262,6 +233,6 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 
 // ListenAndServe starts a server on configured address and protocol.
 func (s *Server) ListenAndServe() error {
-	s.logger.Printf("listening on %s [%s]", s.Config.DNS.Listen, s.Config.DNS.Protocol)
+	s.logger.Printf("dns server listening on %s [%s]", s.Config.DNS.Listen, s.Config.DNS.Protocol)
 	return s.proxy.ListenAndServe(s.Config.DNS.Listen, s.Config.DNS.Protocol)
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"sync"
+	"syscall"
 	"testing"
 )
 
@@ -40,12 +42,20 @@ hijack_mode = "zero"
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer handleErr(t, func() error { return os.Remove(f) })
-	srv, err := newServer(ioutil.Discard, f)
-	if err != nil {
-		t.Fatal(err)
+	defer os.Remove(f)
+
+	main := cli{
+		out:        ioutil.Discard,
+		configFile: f,
+		args:       []string{"-f", f},
+		signal:     make(chan os.Signal, 1),
 	}
-	if srv == nil {
-		t.Error("want non-nil server")
-	}
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		main.run()
+	}()
+	main.signal <- syscall.SIGTERM
+	wg.Wait()
 }
