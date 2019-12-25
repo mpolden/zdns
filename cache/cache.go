@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
+	"net"
 	"sync"
 	"time"
 
@@ -17,7 +18,7 @@ type Cache struct {
 	maintainer *maintainer
 	mu         sync.RWMutex
 	wg         sync.WaitGroup
-	entries    map[uint32]*value
+	entries    map[uint32]*Value
 	keys       []uint32
 }
 
@@ -50,10 +51,17 @@ func (m *maintainer) run(cache *Cache) {
 	}
 }
 
-type value struct {
+// Value represents a value stored in the cache.
+type Value struct {
+	Question  string
+	Qtype     uint16
+	Answer    net.IP
+	CreatedAt time.Time
 	msg       *dns.Msg
-	createdAt time.Time
 }
+
+// TTL returns the TTL of this cache value.
+func (v *Value) TTL() time.Duration { return minTTL(v.msg) }
 
 // New creates a new cache with a maximum size of maxSize. Stale cache entries are removed at expiryInterval.
 func New(maxSize int, expiryInterval time.Duration) (*Cache, error) {
@@ -66,7 +74,7 @@ func New(maxSize int, expiryInterval time.Duration) (*Cache, error) {
 	cache := &Cache{
 		now:     time.Now,
 		maxSize: maxSize,
-		entries: make(map[uint32]*value, maxSize),
+		entries: make(map[uint32]*Value, maxSize),
 	}
 	maintain(cache, expiryInterval)
 	return cache, nil
@@ -91,37 +99,45 @@ func (c *Cache) Close() error {
 // Get returns the DNS message associated with key k. Get will return nil if any TTL in the answer section of the
 // message is exceeded according to time t.
 func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
+	v, ok := c.getValue(k)
+	if !ok {
+		return nil, false
+	}
+	return v.msg, true
+}
+
+func (c *Cache) getValue(k uint32) (*Value, bool) {
 	c.mu.RLock()
 	v, ok := c.entries[k]
 	c.mu.RUnlock()
 	if !ok || c.isExpired(v) {
 		return nil, false
 	}
-	return v.msg, true
+	return v, true
 }
 
-// List returns the n most recent cache entries.
-func (c *Cache) List(n int) []*dns.Msg {
-	values := make([]*dns.Msg, 0, n)
+// List returns the n most recent cache values.
+func (c *Cache) List(n int) []*Value {
+	values := make([]*Value, 0, n)
 	c.mu.RLock()
 	for i := len(c.keys) - 1; i >= 0; i-- {
 		if len(values) == n {
 			break
 		}
-		v, _ := c.Get(c.keys[i])
+		v, _ := c.getValue(c.keys[i])
 		values = append(values, v)
 	}
 	c.mu.RUnlock()
 	return values
 }
 
-// Set associated key k with the DNS message v. Message v will expire from the cache according to its TTL. Setting a
+// Set associated key k with the DNS message v. Message msg will expire from the cache according to its TTL. Setting a
 // new key in a cache that has reached its maximum size will remove the first key.
-func (c *Cache) Set(k uint32, v *dns.Msg) {
+func (c *Cache) Set(k uint32, msg *dns.Msg) {
 	if c.maxSize == 0 {
 		return
 	}
-	if !isCacheable(v) {
+	if !isCacheable(msg) {
 		return
 	}
 	now := c.now()
@@ -130,9 +146,30 @@ func (c *Cache) Set(k uint32, v *dns.Msg) {
 		delete(c.entries, c.keys[0])
 		c.keys = c.keys[1:]
 	}
-	c.entries[k] = &value{v, now}
+	c.entries[k] = &Value{
+		Question:  question(msg),
+		Answer:    answer(msg),
+		Qtype:     qtype(msg),
+		CreatedAt: now,
+		msg:       msg,
+	}
 	c.keys = append(c.keys, k)
 	c.mu.Unlock()
+}
+
+func qtype(m *dns.Msg) uint16 { return m.Question[0].Qtype }
+
+func question(m *dns.Msg) string { return m.Question[0].Name }
+
+func answer(m *dns.Msg) net.IP {
+	rr := m.Answer[0]
+	switch v := rr.(type) {
+	case *dns.A:
+		return v.A
+	case *dns.AAAA:
+		return v.AAAA
+	}
+	return net.IPv4zero
 }
 
 func (c *Cache) deleteExpired() {
@@ -145,10 +182,10 @@ func (c *Cache) deleteExpired() {
 	c.mu.Unlock()
 }
 
-func (c *Cache) isExpired(v *value) bool {
+func (c *Cache) isExpired(v *Value) bool {
 	now := c.now()
 	for _, answer := range v.msg.Answer {
-		if now.After(v.createdAt.Add(ttl(answer))) {
+		if now.After(v.CreatedAt.Add(ttl(answer))) {
 			return true
 		}
 	}

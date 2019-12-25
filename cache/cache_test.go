@@ -65,9 +65,11 @@ func TestNewKey(t *testing.T) {
 func awaitExpiry(t *testing.T, c *Cache, k uint32) {
 	now := time.Now()
 	for {
+		c.mu.RLock()
 		if _, ok := c.entries[k]; !ok {
 			break
 		}
+		c.mu.RUnlock()
 		time.Sleep(10 * time.Millisecond)
 		if time.Since(now) > 2*time.Second {
 			t.Fatalf("timed out waiting for expiry of key %d", k)
@@ -186,10 +188,15 @@ func TestCacheList(t *testing.T) {
 			t.Errorf("#%d: len(List(%d)) = %d, want %d", i, tt.listCount, got, tt.wantCount)
 		}
 
+		gotMsgs := make([]*dns.Msg, 0, len(values))
+		for _, v := range values {
+			gotMsgs = append(gotMsgs, v.msg)
+		}
+
 		msgs = reverse(msgs)
 		want := msgs[:tt.wantCount]
-		if !reflect.DeepEqual(want, values) {
-			t.Errorf("#%d: got %+v, want %+v", i, values, want)
+		if !reflect.DeepEqual(want, gotMsgs) {
+			t.Errorf("#%d: got %+v, want %+v", i, gotMsgs, want)
 		}
 	}
 }
