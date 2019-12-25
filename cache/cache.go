@@ -13,7 +13,7 @@ import (
 
 // Cache represents a cache of DNS entries. Use New to initialize a new cache.
 type Cache struct {
-	maxSize    int
+	capacity   int
 	now        func() time.Time
 	maintainer *maintainer
 	mu         sync.RWMutex
@@ -63,18 +63,18 @@ type Value struct {
 // TTL returns the TTL of this cache value.
 func (v *Value) TTL() time.Duration { return minTTL(v.msg) }
 
-// New creates a new cache with a maximum size of maxSize. Stale cache entries are removed at expiryInterval.
-func New(maxSize int, expiryInterval time.Duration) (*Cache, error) {
-	if maxSize < 0 {
-		return nil, fmt.Errorf("invalid cache size: %d", maxSize)
+// New creates a new cache of given capacity. Stale cache entries are removed at expiryInterval.
+func New(capacity int, expiryInterval time.Duration) (*Cache, error) {
+	if capacity < 0 {
+		return nil, fmt.Errorf("invalid capacity: %d", capacity)
 	}
 	if expiryInterval == 0 {
 		expiryInterval = 10 * time.Minute
 	}
 	cache := &Cache{
-		now:     time.Now,
-		maxSize: maxSize,
-		entries: make(map[uint32]*Value, maxSize),
+		now:      time.Now,
+		capacity: capacity,
+		entries:  make(map[uint32]*Value, capacity),
 	}
 	maintain(cache, expiryInterval)
 	return cache, nil
@@ -132,9 +132,9 @@ func (c *Cache) List(n int) []*Value {
 }
 
 // Set associated key k with the DNS message v. Message msg will expire from the cache according to its TTL. Setting a
-// new key in a cache that has reached its maximum size will remove the first key.
+// new key in a cache that has reached its capacity will remove the first key.
 func (c *Cache) Set(k uint32, msg *dns.Msg) {
-	if c.maxSize == 0 {
+	if c.capacity == 0 {
 		return
 	}
 	if !isCacheable(msg) {
@@ -142,7 +142,7 @@ func (c *Cache) Set(k uint32, msg *dns.Msg) {
 	}
 	now := c.now()
 	c.mu.Lock()
-	if len(c.entries) == c.maxSize && c.maxSize > 0 {
+	if len(c.entries) == c.capacity && c.capacity > 0 {
 		delete(c.entries, c.keys[0])
 		c.keys = c.keys[1:]
 	}

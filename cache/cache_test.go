@@ -119,9 +119,9 @@ func TestCache(t *testing.T) {
 	}
 }
 
-func TestCacheMaxSize(t *testing.T) {
+func TestCacheCapacity(t *testing.T) {
 	var tests = []struct {
-		addCount, maxSize, size int
+		addCount, capacity, size int
 	}{
 		{1, 0, 0},
 		{1, 2, 1},
@@ -129,7 +129,7 @@ func TestCacheMaxSize(t *testing.T) {
 		{3, 2, 2},
 	}
 	for i, tt := range tests {
-		c, err := New(tt.maxSize, 10*time.Minute)
+		c, err := New(tt.capacity, 10*time.Minute)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -144,7 +144,7 @@ func TestCacheMaxSize(t *testing.T) {
 		if got := len(c.entries); got != tt.size {
 			t.Errorf("#%d: len(entries) = %d, want %d", i, got, tt.size)
 		}
-		if tt.maxSize > 0 && tt.addCount > tt.maxSize && tt.maxSize == tt.size {
+		if tt.capacity > 0 && tt.addCount > tt.capacity && tt.capacity == tt.size {
 			lastAdded := msgs[tt.addCount-1].Question[0]
 			lastK := NewKey(lastAdded.Name, lastAdded.Qtype, lastAdded.Qclass)
 			if _, ok := c.Get(lastK); !ok {
@@ -187,7 +187,6 @@ func TestCacheList(t *testing.T) {
 		if got := len(values); got != tt.wantCount {
 			t.Errorf("#%d: len(List(%d)) = %d, want %d", i, tt.listCount, got, tt.wantCount)
 		}
-
 		gotMsgs := make([]*dns.Msg, 0, len(values))
 		for _, v := range values {
 			gotMsgs = append(gotMsgs, v.msg)
