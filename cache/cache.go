@@ -100,6 +100,21 @@ func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
 	return v.msg, true
 }
 
+// List returns the n most recent cache entries.
+func (c *Cache) List(n int) []*dns.Msg {
+	values := make([]*dns.Msg, 0, n)
+	c.mu.RLock()
+	for i := len(c.keys) - 1; i >= 0; i-- {
+		if len(values) == n {
+			break
+		}
+		v, _ := c.Get(c.keys[i])
+		values = append(values, v)
+	}
+	c.mu.RUnlock()
+	return values
+}
+
 // Set associated key k with the DNS message v. Message v will expire from the cache according to its TTL. Setting a
 // new key in a cache that has reached its maximum size will remove the first key.
 func (c *Cache) Set(k uint32, v *dns.Msg) {

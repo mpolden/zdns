@@ -3,6 +3,7 @@ package cache
 import (
 	"fmt"
 	"net"
+	"reflect"
 	"testing"
 	"time"
 
@@ -32,6 +33,14 @@ func newA(name string, ttl uint32, ipAddr ...net.IP) *dns.Msg {
 
 func date(year int, month time.Month, day int) time.Time {
 	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+}
+
+func reverse(msgs []*dns.Msg) []*dns.Msg {
+	reversed := make([]*dns.Msg, 0, len(msgs))
+	for i := len(msgs) - 1; i >= 0; i-- {
+		reversed = append(reversed, msgs[i])
+	}
+	return reversed
 }
 
 func TestNewKey(t *testing.T) {
@@ -144,6 +153,43 @@ func TestCacheMaxSize(t *testing.T) {
 			if _, ok := c.Get(firstK); ok {
 				t.Errorf("#%d: Get(NewKey(%q, _, _)) = (_, %t), want (_, %t)", i, firstAdded.Name, ok, !ok)
 			}
+		}
+	}
+}
+
+func TestCacheList(t *testing.T) {
+	var tests = []struct {
+		addCount, listCount, wantCount int
+	}{
+		{0, 0, 0},
+		{1, 0, 0},
+		{1, 1, 1},
+		{2, 1, 1},
+		{2, 3, 2},
+	}
+	for i, tt := range tests {
+		c, err := New(1024, 10*time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer handleErr(t, c.Close)
+		var msgs []*dns.Msg
+		for i := 0; i < tt.addCount; i++ {
+			m := newA(fmt.Sprintf("r%d", i), 60, net.ParseIP(fmt.Sprintf("192.0.2.%d", i)))
+			k := NewKey(m.Question[0].Name, m.Question[0].Qtype, m.Question[0].Qclass)
+			msgs = append(msgs, m)
+			c.Set(k, m)
+		}
+
+		values := c.List(tt.listCount)
+		if got := len(values); got != tt.wantCount {
+			t.Errorf("#%d: len(List(%d)) = %d, want %d", i, tt.listCount, got, tt.wantCount)
+		}
+
+		msgs = reverse(msgs)
+		want := msgs[:tt.wantCount]
+		if !reflect.DeepEqual(want, values) {
+			t.Errorf("#%d: got %+v, want %+v", i, values, want)
 		}
 	}
 }
