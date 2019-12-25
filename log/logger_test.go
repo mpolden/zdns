@@ -36,7 +36,7 @@ func TestLogPruning(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt := time.Now()
-	logger.now = func() time.Time { return tt }
+	logger.Now = func() time.Time { return tt }
 	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1")
 
 	// Wait until queue is flushed

@@ -10,6 +10,7 @@ import (
 	"flag"
 
 	"github.com/mpolden/zdns"
+	"github.com/mpolden/zdns/http"
 	"github.com/mpolden/zdns/log"
 	"github.com/mpolden/zdns/signal"
 )
@@ -79,13 +80,20 @@ func (c *cli) run() {
 	})
 	fatal(err)
 
+	sigHandler := signal.NewHandler(c.signal, logger)
+
 	dnsSrv, err := zdns.NewServer(logger, config)
 	fatal(err)
-
-	sigHandler := signal.NewHandler(c.signal, logger)
 	sigHandler.OnReload(dnsSrv)
 	sigHandler.OnClose(dnsSrv)
 	c.runServer(dnsSrv)
+
+	httpSrv := http.NewServer(logger, config.DNS.ListenHTTP)
+	if httpSrv != nil {
+		sigHandler.OnClose(httpSrv)
+		c.runServer(httpSrv)
+	}
+
 	c.wg.Wait()
 }
 

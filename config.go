@@ -37,6 +37,7 @@ type DNSOptions struct {
 	logMode             int
 	LogTTLString        string `toml:"log_ttl"`
 	LogTTL              time.Duration
+	ListenHTTP          string `toml:"listen_http"`
 }
 
 // ResolverOptions controls the behaviour of resolvers.

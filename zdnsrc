@@ -55,6 +55,11 @@
 #
 # log_mode = ""
 
+# HTTP server for inspecting logs and cache. Setting a listening address on the
+# form addr:port will enable the server.
+#
+# listen_http = ""
+
 [resolver]
 # Set the protocol to use when sending requests to upstream resolvers. Support protocols:
 #
