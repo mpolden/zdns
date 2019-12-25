@@ -170,9 +170,6 @@ func minTTL(m *dns.Msg) time.Duration {
 	for _, ns := range m.Ns {
 		ttl = min(ns.Header().Ttl, ttl)
 	}
-	for _, extra := range m.Extra {
-		ttl = min(extra.Header().Ttl, ttl)
-	}
 	return time.Duration(ttl) * time.Second
 }
 
