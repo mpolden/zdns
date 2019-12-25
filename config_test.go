@@ -163,6 +163,13 @@ log_mode = "foo"
 [resolver]
 timeout = "1s"
 `
+
+	conf15 := baseConf + `
+log_mode = "hijacked"
+
+[resolver]
+timeout = "1s"
+`
 	var tests = []struct {
 		in  string
 		err string
@@ -182,6 +189,7 @@ timeout = "1s"
 		{conf12, "[0.0.0.0 host1]: timeout cannot be set for inline hosts"},
 		{conf13, "invalid cache expiry interval: time: invalid duration foo"},
 		{conf14, "invalid log mode: foo"},
+		{conf15, `log_mode = "hijacked" requires log_database to be set`},
 	}
 	for i, tt := range tests {
 		var got string

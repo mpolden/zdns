@@ -45,13 +45,15 @@
 #
 # log_database = ""
 
-# Configure which requests to log.
+# Enable request logging. The option log_database must be set when enabling
+# this.
+#
 # Possible values:
 # all: Logs all requests.
-# hijacked: Logs only hijacked requests (default).
-# disabled: Disable logging.
+# hijacked: Logs only hijacked requests
+# empty string: Disable logging (default).
 #
-# log_mode = "hijacked"
+# log_mode = ""
 
 [resolver]
 # Set the protocol to use when sending requests to upstream resolvers. Support protocols:

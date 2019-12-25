@@ -169,7 +169,7 @@ func (c *Config) load() error {
 		c.Resolver.timeout = 5 * time.Second
 	}
 	switch c.DNS.LogMode {
-	case "", "disabled":
+	case "":
 		c.DNS.logMode = dns.LogDiscard
 	case "all":
 		c.DNS.logMode = dns.LogAll
@@ -177,6 +177,9 @@ func (c *Config) load() error {
 		c.DNS.logMode = dns.LogHijacked
 	default:
 		return fmt.Errorf("invalid log mode: %s", c.DNS.LogMode)
+	}
+	if c.DNS.LogMode != "" && c.DNS.LogDatabase == "" {
+		return fmt.Errorf("log_mode = %q requires log_database to be set", c.DNS.LogMode)
 	}
 	if c.DNS.LogTTLString == "" {
 		c.DNS.LogTTLString = "0"
