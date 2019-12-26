@@ -68,7 +68,7 @@
 # udp: Plain DNS over UDP.
 # tcp: Plain DNS over TCP.
 #
-# protocol = "udp"
+# protocol = "tcp-tls"
 
 # Set the maximum timeout of a DNS request.
 #
