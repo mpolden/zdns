@@ -14,14 +14,20 @@ const (
 	TypeA = dns.TypeA
 	// TypeAAAA represents the resource record type AAAA, an IPv6 address.
 	TypeAAAA = dns.TypeAAAA
-	// TypeMX represents the resource record type MX, a mail exchange address.
-	TypeMX = dns.TypeMX
 	// LogDiscard disables logging of DNS requests
 	LogDiscard = iota
 	// LogAll logs all DNS requests
 	LogAll
 	// LogHijacked only logs hijacked DNS requets
 	LogHijacked
+)
+
+var (
+	// TypeToString contains a mapping of DNS request type to string.
+	TypeToString = dns.TypeToString
+
+	// RcodeToString contains a mapping of Mapping DNS return code to string.
+	RcodeToString = dns.RcodeToString
 )
 
 // Request represents a simplified DNS request.
@@ -149,6 +155,8 @@ func answers(msg *dns.Msg) []string {
 			answers = append(answers, v.AAAA.String())
 		case *dns.MX:
 			answers = append(answers, v.Mx)
+		case *dns.PTR:
+			answers = append(answers, v.Ptr)
 		}
 	}
 	return answers

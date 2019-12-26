@@ -26,7 +26,8 @@ type entry struct {
 	RemoteAddr net.IP   `json:"remote_addr,omitempty"`
 	Qtype      string   `json:"type"`
 	Question   string   `json:"question"`
-	Answers    []string `json:"answers"`
+	Answers    []string `json:"answers,omitempty"`
+	Rcode      string   `json:"rcode,omitempty"`
 }
 
 type httpError struct {
@@ -99,24 +100,13 @@ func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) (interface
 		entries = append(entries, entry{
 			Time:     v.CreatedAt.UTC().Format(time.RFC3339),
 			TTL:      int64(v.TTL().Truncate(time.Second).Seconds()),
-			Qtype:    qtype(v.Qtype),
-			Question: v.Question,
-			Answers:  v.Answers,
+			Qtype:    dns.TypeToString[v.Qtype()],
+			Question: v.Question(),
+			Answers:  v.Answers(),
+			Rcode:    dns.RcodeToString[v.Rcode()],
 		})
 	}
 	return entries, nil
-}
-
-func qtype(qtype uint16) string {
-	switch qtype {
-	case dns.TypeA:
-		return "A"
-	case dns.TypeAAAA:
-		return "AAAA"
-	case dns.TypeMX:
-		return "MX"
-	}
-	return ""
 }
 
 func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
@@ -132,7 +122,7 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 		entries = append(entries, entry{
 			Time:       le.Time.UTC().Format(time.RFC3339),
 			RemoteAddr: le.RemoteAddr,
-			Qtype:      qtype(le.Qtype),
+			Qtype:      dns.TypeToString[le.Qtype],
 			Question:   le.Question,
 			Answers:    le.Answers,
 		})

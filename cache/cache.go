@@ -51,11 +51,35 @@ func (m *maintainer) run(cache *Cache) {
 
 // Value represents a value stored in the cache.
 type Value struct {
-	Question  string
-	Qtype     uint16
-	Answers   []string
 	CreatedAt time.Time
 	msg       *dns.Msg
+}
+
+// Rcode returns the response code of this cached value.
+func (v *Value) Rcode() int { return v.msg.Rcode }
+
+// Question returns the question of this cached value.
+func (v *Value) Question() string { return v.msg.Question[0].Name }
+
+// Qtype returns the DNS request type of this cached value.
+func (v *Value) Qtype() uint16 { return v.msg.Question[0].Qtype }
+
+// Answers returns the DNS responses of this cached value.
+func (v *Value) Answers() []string {
+	var answers []string
+	for _, answer := range v.msg.Answer {
+		switch v := answer.(type) {
+		case *dns.A:
+			answers = append(answers, v.A.String())
+		case *dns.AAAA:
+			answers = append(answers, v.AAAA.String())
+		case *dns.MX:
+			answers = append(answers, v.Mx)
+		case *dns.PTR:
+			answers = append(answers, v.Ptr)
+		}
+	}
+	return answers
 }
 
 // TTL returns the TTL of this cache value.
@@ -147,35 +171,11 @@ func (c *Cache) Set(k uint32, msg *dns.Msg) {
 		delete(c.values, c.keys[0])
 		c.keys = c.keys[1:]
 	}
-	c.values[k] = &Value{
-		Question:  question(msg),
-		Answers:   answers(msg),
-		Qtype:     qtype(msg),
-		CreatedAt: now,
-		msg:       msg,
-	}
+	c.values[k] = &Value{CreatedAt: now, msg: msg}
 	c.keys = append(c.keys, k)
 	c.mu.Unlock()
 }
 
-func qtype(msg *dns.Msg) uint16 { return msg.Question[0].Qtype }
-
-func question(msg *dns.Msg) string { return msg.Question[0].Name }
-
-func answers(msg *dns.Msg) []string {
-	var answers []string
-	for _, answer := range msg.Answer {
-		switch v := answer.(type) {
-		case *dns.A:
-			answers = append(answers, v.A.String())
-		case *dns.AAAA:
-			answers = append(answers, v.AAAA.String())
-		case *dns.MX:
-			answers = append(answers, v.Mx)
-		}
-	}
-	return answers
-}
 func (c *Cache) deleteExpired() {
 	c.mu.Lock()
 	for k, v := range c.values {

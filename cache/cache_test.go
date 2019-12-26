@@ -92,30 +92,12 @@ func TestCache(t *testing.T) {
 		ok                   bool
 		value                *Value
 	}{
-		{msg, createdAt, createdAt, true, &Value{
-			CreatedAt: createdAt,
-			Question:  "foo.",
-			Qtype:     1,
-			Answers:   []string{"192.0.2.1", "192.0.2.2"},
-			msg:       msg},
-		}, // Not expired when query time == create time
-		{msg, createdAt, createdAt.Add(30 * time.Second), true, &Value{
-			CreatedAt: createdAt,
-			Question:  "foo.",
-			Qtype:     1,
-			Answers:   []string{"192.0.2.1", "192.0.2.2"},
-			msg:       msg},
-		}, // Not expired when below TTL
-		{msg, createdAt, createdAt.Add(60 * time.Second), true, &Value{
-			CreatedAt: createdAt,
-			Question:  "foo.",
-			Qtype:     1,
-			Answers:   []string{"192.0.2.1", "192.0.2.2"},
-			msg:       msg},
-		}, //,  Not expired until TTL exceeds
-		{msg, createdAt, createdAt.Add(61 * time.Second), false, nil}, // Expired
-		{msgWithZeroTTL, createdAt, createdAt, false, nil},            // 0 TTL is not cached
-		{msgFailure, createdAt, createdAt, false, nil},                // Non-cacheable rcode
+		{msg, createdAt, createdAt, true, &Value{CreatedAt: createdAt, msg: msg}},                       // Not expired when query time == create time
+		{msg, createdAt, createdAt.Add(30 * time.Second), true, &Value{CreatedAt: createdAt, msg: msg}}, // Not expired when below TTL
+		{msg, createdAt, createdAt.Add(60 * time.Second), true, &Value{CreatedAt: createdAt, msg: msg}}, //,  Not expired until TTL exceeds
+		{msg, createdAt, createdAt.Add(61 * time.Second), false, nil},                                   // Expired
+		{msgWithZeroTTL, createdAt, createdAt, false, nil},                                              // 0 TTL is not cached
+		{msgFailure, createdAt, createdAt, false, nil},                                                  // Non-cacheable rcode
 	}
 	for i, tt := range tests {
 		c.now = func() time.Time { return tt.createdAt }
