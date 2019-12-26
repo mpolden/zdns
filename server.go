@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v3"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
 	"github.com/mpolden/zdns/log"
