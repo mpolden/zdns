@@ -105,12 +105,12 @@ func (c *cli) run() {
 	sigHandler.OnClose(dnsSrv)
 	c.runServer(dnsSrv)
 
-	httpSrv := http.NewServer(logger, config.DNS.ListenHTTP)
-	if httpSrv != nil {
+	// HTTP server
+	if config.DNS.ListenHTTP != "" {
+		httpSrv := http.NewServer(logger, config.DNS.ListenHTTP)
 		sigHandler.OnClose(httpSrv)
 		c.runServer(httpSrv)
 	}
-
 	c.wg.Wait()
 }
 
