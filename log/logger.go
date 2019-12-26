@@ -33,8 +33,7 @@ type Entry struct {
 	RemoteAddr net.IP
 	Qtype      uint16
 	Question   string
-	Answer     string
-	answers    []string
+	Answers    []string
 }
 
 type maintainer struct {
@@ -116,7 +115,7 @@ func (l *Logger) Record(remoteAddr net.IP, qtype uint16, question string, answer
 		RemoteAddr: remoteAddr,
 		Qtype:      qtype,
 		Question:   question,
-		answers:    answers,
+		Answers:    answers,
 	}
 }
 
@@ -126,15 +125,22 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	entries := make([]Entry, len(logEntries))
-	for i, le := range logEntries {
-		entries[i] = Entry{
-			Time:       time.Unix(le.Time, 0),
-			RemoteAddr: le.RemoteAddr,
-			Qtype:      le.Qtype,
-			Question:   le.Question,
-			Answer:     le.Answer,
+	ids := make(map[int64]*Entry)
+	entries := make([]Entry, 0, len(logEntries))
+	for _, le := range logEntries {
+		entry, ok := ids[le.ID]
+		if !ok {
+			newEntry := Entry{
+				Time:       time.Unix(le.Time, 0).UTC(),
+				RemoteAddr: le.RemoteAddr,
+				Qtype:      le.Qtype,
+				Question:   le.Question,
+			}
+			entries = append(entries, newEntry)
+			entry = &entries[len(entries)-1]
+			ids[le.ID] = entry
 		}
+		entry.Answers = append(entry.Answers, le.Answer)
 	}
 	return entries, nil
 }
@@ -142,7 +148,7 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 func (l *Logger) readQueue() {
 	defer l.wg.Done()
 	for entry := range l.queue {
-		if err := l.db.WriteLog(entry.Time, entry.RemoteAddr, entry.Qtype, entry.Question, entry.answers...); err != nil {
+		if err := l.db.WriteLog(entry.Time, entry.RemoteAddr, entry.Qtype, entry.Question, entry.Answers...); err != nil {
 			l.Printf("write failed: %+v: %s", entry, err)
 		}
 	}

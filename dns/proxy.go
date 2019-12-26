@@ -14,6 +14,8 @@ const (
 	TypeA = dns.TypeA
 	// TypeAAAA represents the resource record type AAAA, an IPv6 address.
 	TypeAAAA = dns.TypeAAAA
+	// TypeMX represents the resource record type MX, a mail exchange address.
+	TypeMX = dns.TypeMX
 	// LogDiscard disables logging of DNS requests
 	LogDiscard = iota
 	// LogAll logs all DNS requests

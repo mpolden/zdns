@@ -3,6 +3,7 @@ package log
 import (
 	"net"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -17,12 +18,41 @@ func TestRecord(t *testing.T) {
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)
 	}
-	entries, err := logger.db.ReadLog(2)
+	logEntries, err := logger.db.ReadLog(1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want, got := 2, len(entries); want != got {
+	if want, got := 2, len(logEntries); want != got {
 		t.Errorf("len(entries) = %d, want %d", got, want)
+	}
+}
+
+func TestAnswerMerging(t *testing.T) {
+	logger, err := New(os.Stderr, "test: ", RecordOptions{Database: ":memory:"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)
+	logger.Now = func() time.Time { return now }
+	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1", "192.0.2.2")
+	// Flush queue
+	if err := logger.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Multi-answer log entry is merged
+	got, err := logger.Get(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Entry{{
+		Time:       now,
+		RemoteAddr: net.IPv4(192, 0, 2, 100),
+		Qtype:      1,
+		Question:   "example.com.",
+		Answers:    []string{"192.0.2.2", "192.0.2.1"},
+	}}
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("Get(1) = %+v, want %+v", got, want)
 	}
 }
 

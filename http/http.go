@@ -19,11 +19,11 @@ type Server struct {
 }
 
 type logEntry struct {
-	Time       string `json:"time"`
-	RemoteAddr net.IP `json:"remote_addr"`
-	Qtype      string `json:"type"`
-	Question   string `json:"question"`
-	Answer     string `json:"answer"`
+	Time       string   `json:"time"`
+	RemoteAddr net.IP   `json:"remote_addr"`
+	Qtype      string   `json:"type"`
+	Question   string   `json:"question"`
+	Answers    []string `json:"answers"`
 }
 
 type httpError struct {
@@ -101,13 +101,15 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 			dnsType = "A"
 		case dns.TypeAAAA:
 			dnsType = "AAAA"
+		case dns.TypeMX:
+			dnsType = "MX"
 		}
 		e := logEntry{
 			Time:       entry.Time.UTC().Format(time.RFC3339),
 			RemoteAddr: entry.RemoteAddr,
 			Qtype:      dnsType,
 			Question:   entry.Question,
-			Answer:     entry.Answer,
+			Answers:    entry.Answers,
 		}
 		entries = append(entries, e)
 	}

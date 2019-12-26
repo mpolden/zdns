@@ -39,11 +39,11 @@ func httpGet(url string) (string, int, error) {
 func TestRequests(t *testing.T) {
 	server, logger := testServer()
 	defer server.Close()
-	logger.Record(net.IPv4(127, 0, 0, 42), 1, "example.com.", "192.0.2.100")
+	logger.Record(net.IPv4(127, 0, 0, 42), 1, "example.com.", "192.0.2.100", "192.0.2.101")
 	logger.Record(net.IPv4(127, 0, 0, 254), 28, "example.com.", "2001:db8::1")
 
-	var logResponse = "[{\"time\":\"2006-01-02T15:04:05Z\",\"remote_addr\":\"127.0.0.254\",\"type\":\"AAAA\",\"question\":\"example.com.\",\"answer\":\"2001:db8::1\"}," +
-		"{\"time\":\"2006-01-02T15:04:05Z\",\"remote_addr\":\"127.0.0.42\",\"type\":\"A\",\"question\":\"example.com.\",\"answer\":\"192.0.2.100\"}]"
+	var logResponse = "[{\"time\":\"2006-01-02T15:04:05Z\",\"remote_addr\":\"127.0.0.254\",\"type\":\"AAAA\",\"question\":\"example.com.\",\"answers\":[\"2001:db8::1\"]}," +
+		"{\"time\":\"2006-01-02T15:04:05Z\",\"remote_addr\":\"127.0.0.42\",\"type\":\"A\",\"question\":\"example.com.\",\"answers\":[\"192.0.2.101\",\"192.0.2.100\"]}]"
 
 	var tests = []struct {
 		method   string
