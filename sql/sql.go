@@ -62,6 +62,7 @@ type Client struct {
 
 // LogEntry represents an entry in the log.
 type LogEntry struct {
+	ID         int64  `db:"id"`
 	Time       int64  `db:"time"`
 	RemoteAddr []byte `db:"remote_addr"`
 	Qtype      uint16 `db:"type"`
@@ -90,7 +91,8 @@ func (c *Client) ReadLog(n int) ([]LogEntry, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	query := `
-SELECT time,
+SELECT log.id AS id,
+       time,
        remote_addr.addr AS remote_addr,
        type,
        rr_question.name AS question,
