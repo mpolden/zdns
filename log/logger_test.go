@@ -33,7 +33,7 @@ func TestAnswerMerging(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)
-	logger.Now = func() time.Time { return now }
+	logger.now = func() time.Time { return now }
 	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1", "192.0.2.2")
 	// Flush queue
 	if err := logger.Close(); err != nil {
@@ -66,7 +66,7 @@ func TestLogPruning(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt := time.Now()
-	logger.Now = func() time.Time { return tt }
+	logger.now = func() time.Time { return tt }
 	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1")
 
 	// Wait until queue is flushed

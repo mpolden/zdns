@@ -107,7 +107,7 @@ func (c *cli) run() {
 
 	// HTTP server
 	if config.DNS.ListenHTTP != "" {
-		httpSrv := http.NewServer(logger, config.DNS.ListenHTTP)
+		httpSrv := http.NewServer(logger, cache, config.DNS.ListenHTTP)
 		sigHandler.OnClose(httpSrv)
 		c.runServer(httpSrv)
 	}

@@ -13,7 +13,7 @@ import (
 // Logger wraps a standard log.Logger and an optional log database.
 type Logger struct {
 	*log.Logger
-	Now        func() time.Time
+	now        func() time.Time
 	queue      chan Entry
 	db         *sql.Client
 	maintainer *maintainer
@@ -47,7 +47,7 @@ func New(w io.Writer, prefix string, options RecordOptions) (*Logger, error) {
 	logger := &Logger{
 		Logger: log.New(w, prefix, 0),
 		queue:  make(chan Entry, 100),
-		Now:    time.Now,
+		now:    time.Now,
 	}
 	var err error
 	if options.Database != "" {
@@ -84,7 +84,7 @@ func (m *maintainer) run(logger *Logger) {
 	for {
 		select {
 		case <-ticker.C:
-			t := logger.Now().Add(-m.ttl)
+			t := logger.now().Add(-m.ttl)
 			if err := logger.db.DeleteLogBefore(t); err != nil {
 				logger.Printf("error deleting log entries before %v: %s", t, err)
 			}
@@ -111,7 +111,7 @@ func (l *Logger) Record(remoteAddr net.IP, qtype uint16, question string, answer
 		return
 	}
 	l.queue <- Entry{
-		Time:       l.Now(),
+		Time:       l.now(),
 		RemoteAddr: remoteAddr,
 		Qtype:      qtype,
 		Question:   question,
