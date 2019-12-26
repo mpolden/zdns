@@ -30,6 +30,7 @@ func TestMain(t *testing.T) {
 	conf := `
 [dns]
 listen = "127.0.0.1:0"
+listen_http = "127.0.0.1:0"
 
 [resolver]
 protocol = "udp"
