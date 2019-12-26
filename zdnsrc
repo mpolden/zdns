@@ -56,6 +56,10 @@
 #
 # log_mode = ""
 
+# Configure how long logged requests should be kept.
+#
+# log_ttl = "168h"
+
 # HTTP server for inspecting logs and cache. Setting a listening address on the
 # form addr:port will enable the server.
 #
