@@ -60,15 +60,15 @@ func (l *testLogger) Record(remoteAddr net.IP, qtype uint16, question, answer st
 	l.remoteAddr = remoteAddr
 }
 
-func testProxy(t *testing.T) *Proxy { return testProxyWithOptions(t, ProxyOptions{}) }
-
-func testProxyWithOptions(t *testing.T, options ProxyOptions) *Proxy {
+func testProxy(t *testing.T) *Proxy {
 	log, err := log.New(ioutil.Discard, "", log.RecordOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	options.Logger = log
-	proxy, err := NewProxy(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxy, err := NewProxy(cache.New(0, time.Minute), log, ProxyOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestProxy(t *testing.T) {
 		return nil
 	}
 	p := testProxy(t)
-	p.handler = h
+	p.Handler = h
 
 	m := dns.Msg{}
 	m.Id = dns.Id()
@@ -191,7 +191,8 @@ func TestProxyWithResolvers(t *testing.T) {
 }
 
 func TestProxyWithCache(t *testing.T) {
-	p := testProxyWithOptions(t, ProxyOptions{CacheSize: 10, CacheExpiryInterval: time.Minute})
+	p := testProxy(t)
+	p.cache = cache.New(10, time.Minute)
 	p.resolvers = []string{"resolver1"}
 	client := make(testClient)
 	p.client = client
@@ -212,8 +213,8 @@ func TestProxyWithCache(t *testing.T) {
 }
 
 func TestProxyWithLogging(t *testing.T) {
-	log := &testLogger{}
-	p, err := NewProxy(ProxyOptions{Logger: log})
+	logger := &testLogger{}
+	p, err := NewProxy(cache.New(0, time.Minute), logger, ProxyOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +235,7 @@ func TestProxyWithLogging(t *testing.T) {
 		}
 		return nil
 	}
-	p.handler = h
+	p.Handler = h
 
 	var tests = []struct {
 		question   string
@@ -250,8 +251,8 @@ func TestProxyWithLogging(t *testing.T) {
 		{goodHost, net.IPv4(192, 0, 2, 100), false, LogDiscard},
 	}
 	for i, tt := range tests {
-		log.question = ""
-		log.remoteAddr = nil
+		logger.question = ""
+		logger.remoteAddr = nil
 		p.logMode = tt.logMode
 		m.SetQuestion(tt.question, dns.TypeA)
 		if tt.question == badHost {
@@ -260,18 +261,18 @@ func TestProxyWithLogging(t *testing.T) {
 			assertRR(t, p, &m, "192.0.2.1")
 		}
 		if tt.log {
-			if log.question != tt.question {
-				t.Errorf("#%d: question = %q, want %q", i, log.question, tt.question)
+			if logger.question != tt.question {
+				t.Errorf("#%d: question = %q, want %q", i, logger.question, tt.question)
 			}
-			if log.remoteAddr.String() != tt.remoteAddr.String() {
-				t.Errorf("#%d: remoteAddr = %s, want %s", i, log.remoteAddr, tt.remoteAddr)
+			if logger.remoteAddr.String() != tt.remoteAddr.String() {
+				t.Errorf("#%d: remoteAddr = %s, want %s", i, logger.remoteAddr, tt.remoteAddr)
 			}
 		} else {
-			if log.question != "" {
-				t.Errorf("#%d: question = %q, want %q", i, log.question, "")
+			if logger.question != "" {
+				t.Errorf("#%d: question = %q, want %q", i, logger.question, "")
 			}
-			if log.remoteAddr != nil {
-				t.Errorf("#%d: remoteAddr = %v, want %v", i, log.remoteAddr, nil)
+			if logger.remoteAddr != nil {
+				t.Errorf("#%d: remoteAddr = %v, want %v", i, logger.remoteAddr, nil)
 			}
 		}
 	}

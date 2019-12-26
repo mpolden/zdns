@@ -22,29 +22,29 @@ type Config struct {
 
 // DNSOptions controlers the behaviour of the DNS server.
 type DNSOptions struct {
-	Listen              string
-	Protocol            string `toml:"protocol"`
-	CacheExpiryInterval string `toml:"cache_expiry_interval"`
-	cacheExpiryInterval time.Duration
-	CacheSize           int    `toml:"cache_size"`
-	HijackMode          string `toml:"hijack_mode"`
-	hijackMode          int
-	RefreshInterval     string `toml:"hosts_refresh_interval"`
-	refreshInterval     time.Duration
-	Resolvers           []string
-	LogDatabase         string `toml:"log_database"`
-	LogMode             string `toml:"log_mode"`
-	logMode             int
-	LogTTLString        string `toml:"log_ttl"`
-	LogTTL              time.Duration
-	ListenHTTP          string `toml:"listen_http"`
+	Listen                    string
+	Protocol                  string `toml:"protocol"`
+	CacheExpiryIntervalString string `toml:"cache_expiry_interval"`
+	CacheExpiryInterval       time.Duration
+	CacheSize                 int    `toml:"cache_size"`
+	HijackMode                string `toml:"hijack_mode"`
+	hijackMode                int
+	RefreshInterval           string `toml:"hosts_refresh_interval"`
+	refreshInterval           time.Duration
+	Resolvers                 []string
+	LogDatabase               string `toml:"log_database"`
+	LogModeString             string `toml:"log_mode"`
+	LogMode                   int
+	LogTTLString              string `toml:"log_ttl"`
+	LogTTL                    time.Duration
+	ListenHTTP                string `toml:"listen_http"`
 }
 
 // ResolverOptions controls the behaviour of resolvers.
 type ResolverOptions struct {
-	Protocol string `toml:"protocol"`
-	Timeout  string `toml:"timeout"`
-	timeout  time.Duration
+	Protocol      string `toml:"protocol"`
+	TimeoutString string `toml:"timeout"`
+	Timeout       time.Duration
 }
 
 // Hosts controls how a hosts file should be retrieved.
@@ -63,7 +63,7 @@ func newConfig() Config {
 	c.DNS.Protocol = "udp"
 	c.DNS.CacheSize = 1024
 	c.DNS.RefreshInterval = "48h"
-	c.Resolver.Timeout = "5s"
+	c.Resolver.TimeoutString = "5s"
 	c.Resolver.Protocol = "udp"
 	return c
 }
@@ -82,10 +82,10 @@ func (c *Config) load() error {
 	if c.DNS.CacheSize < 0 {
 		return fmt.Errorf("cache size must be >= 0")
 	}
-	if c.DNS.CacheExpiryInterval == "" {
-		c.DNS.CacheExpiryInterval = "15m"
+	if c.DNS.CacheExpiryIntervalString == "" {
+		c.DNS.CacheExpiryIntervalString = "15m"
 	}
-	c.DNS.cacheExpiryInterval, err = time.ParseDuration(c.DNS.CacheExpiryInterval)
+	c.DNS.CacheExpiryInterval, err = time.ParseDuration(c.DNS.CacheExpiryIntervalString)
 	if err != nil {
 		return fmt.Errorf("invalid cache expiry interval: %s", err)
 	}
@@ -159,28 +159,28 @@ func (c *Config) load() error {
 	default:
 		return fmt.Errorf("invalid resolver protocol: %s", c.Resolver.Protocol)
 	}
-	c.Resolver.timeout, err = time.ParseDuration(c.Resolver.Timeout)
+	c.Resolver.Timeout, err = time.ParseDuration(c.Resolver.TimeoutString)
 	if err != nil {
-		return fmt.Errorf("invalid resolver timeout: %s", c.Resolver.Timeout)
+		return fmt.Errorf("invalid resolver timeout: %s", c.Resolver.TimeoutString)
 	}
-	if c.Resolver.timeout < 0 {
+	if c.Resolver.Timeout < 0 {
 		return fmt.Errorf("resolver timeout must be >= 0")
 	}
-	if c.Resolver.timeout == 0 {
-		c.Resolver.timeout = 5 * time.Second
+	if c.Resolver.Timeout == 0 {
+		c.Resolver.Timeout = 5 * time.Second
 	}
-	switch c.DNS.LogMode {
+	switch c.DNS.LogModeString {
 	case "":
-		c.DNS.logMode = dns.LogDiscard
+		c.DNS.LogMode = dns.LogDiscard
 	case "all":
-		c.DNS.logMode = dns.LogAll
+		c.DNS.LogMode = dns.LogAll
 	case "hijacked":
-		c.DNS.logMode = dns.LogHijacked
+		c.DNS.LogMode = dns.LogHijacked
 	default:
-		return fmt.Errorf("invalid log mode: %s", c.DNS.LogMode)
+		return fmt.Errorf("invalid log mode: %s", c.DNS.LogModeString)
 	}
-	if c.DNS.LogMode != "" && c.DNS.LogDatabase == "" {
-		return fmt.Errorf("log_mode = %q requires log_database to be set", c.DNS.LogMode)
+	if c.DNS.LogModeString != "" && c.DNS.LogDatabase == "" {
+		return fmt.Errorf("log_mode = %q requires log_database to be set", c.DNS.LogModeString)
 	}
 	if c.DNS.LogTTLString == "" {
 		c.DNS.LogTTLString = "0"

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mpolden/zdns/cache"
 	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
 	"github.com/mpolden/zdns/log"
@@ -86,26 +87,30 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 		defer cleanup()
 		t.Fatal(err)
 	}
-	conf := Config{
+	config := Config{
 		DNS: DNSOptions{Listen: "0.0.0.0:53",
 			hijackMode:      HijackZero,
 			refreshInterval: refreshInterval,
 		},
-		Resolver: ResolverOptions{Timeout: "0"},
+		Resolver: ResolverOptions{TimeoutString: "0"},
 		Hosts: []Hosts{
 			{URL: httpSrv.URL, Hijack: true},
 			{URL: "file://" + file, Hijack: true},
 			{Hosts: []string{"192.0.2.5 badhost5"}},
 		},
 	}
-	if err := conf.load(); err != nil {
+	if err := config.load(); err != nil {
 		t.Fatal(err)
 	}
-	log, err := log.New(ioutil.Discard, "", log.RecordOptions{})
+	logger, err := log.New(ioutil.Discard, "", log.RecordOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv, err = NewServer(log, conf)
+	proxy, err := dns.NewProxy(cache.New(0, time.Minute), logger, dns.ProxyOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err = NewServer(logger, proxy, config)
 	if err != nil {
 		defer cleanup()
 		t.Fatal(err)

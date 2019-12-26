@@ -2,7 +2,6 @@ package cache
 
 import (
 	"encoding/binary"
-	"fmt"
 	"hash/fnv"
 	"net"
 	"sync"
@@ -64,9 +63,9 @@ type Value struct {
 func (v *Value) TTL() time.Duration { return minTTL(v.msg) }
 
 // New creates a new cache of given capacity. Stale cache entries are removed at expiryInterval.
-func New(capacity int, expiryInterval time.Duration) (*Cache, error) {
+func New(capacity int, expiryInterval time.Duration) *Cache {
 	if capacity < 0 {
-		return nil, fmt.Errorf("invalid capacity: %d", capacity)
+		capacity = 0
 	}
 	if expiryInterval == 0 {
 		expiryInterval = 10 * time.Minute
@@ -77,7 +76,7 @@ func New(capacity int, expiryInterval time.Duration) (*Cache, error) {
 		entries:  make(map[uint32]*Value, capacity),
 	}
 	maintain(cache, expiryInterval)
-	return cache, nil
+	return cache
 }
 
 // NewKey creates a new cache key for the DNS name, qtype and qclass

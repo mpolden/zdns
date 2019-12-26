@@ -10,6 +10,8 @@ import (
 	"flag"
 
 	"github.com/mpolden/zdns"
+	"github.com/mpolden/zdns/cache"
+	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/http"
 	"github.com/mpolden/zdns/log"
 	"github.com/mpolden/zdns/signal"
@@ -71,18 +73,33 @@ func (c *cli) run() {
 		return
 	}
 
+	// Config
 	config, err := readConfig(*confFile)
 	fatal(err)
 
+	// Logger
 	logger, err := log.New(c.out, logPrefix, log.RecordOptions{
 		Database: config.DNS.LogDatabase,
 		TTL:      config.DNS.LogTTL,
 	})
 	fatal(err)
 
+	// Signal handling
 	sigHandler := signal.NewHandler(c.signal, logger)
 
-	dnsSrv, err := zdns.NewServer(logger, config)
+	// Cache
+	cache := cache.New(config.DNS.CacheSize, config.DNS.CacheExpiryInterval)
+
+	// DNS server
+	proxy, err := dns.NewProxy(cache, logger, dns.ProxyOptions{
+		Resolvers: config.DNS.Resolvers,
+		LogMode:   config.DNS.LogMode,
+		Network:   config.Resolver.Protocol,
+		Timeout:   config.Resolver.Timeout,
+	})
+	fatal(err)
+
+	dnsSrv, err := zdns.NewServer(logger, proxy, config)
 	fatal(err)
 	sigHandler.OnReload(dnsSrv)
 	sigHandler.OnClose(dnsSrv)

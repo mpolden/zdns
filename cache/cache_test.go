@@ -84,10 +84,7 @@ func TestCache(t *testing.T) {
 	msgFailure.Rcode = dns.RcodeServerFailure
 
 	tt := date(2019, 1, 1)
-	c, err := New(100, time.Duration(10*time.Millisecond))
-	if err != nil {
-		t.Fatal(err)
-	}
+	c := New(100, time.Duration(10*time.Millisecond))
 	defer handleErr(t, c.Close)
 	var tests = []struct {
 		msg                  *dns.Msg
@@ -129,10 +126,7 @@ func TestCacheCapacity(t *testing.T) {
 		{3, 2, 2},
 	}
 	for i, tt := range tests {
-		c, err := New(tt.capacity, 10*time.Minute)
-		if err != nil {
-			t.Fatal(err)
-		}
+		c := New(tt.capacity, 10*time.Minute)
 		defer handleErr(t, c.Close)
 		var msgs []*dns.Msg
 		for i := 0; i < tt.addCount; i++ {
@@ -170,10 +164,7 @@ func TestCacheList(t *testing.T) {
 		{2, 3, 2},
 	}
 	for i, tt := range tests {
-		c, err := New(1024, 10*time.Minute)
-		if err != nil {
-			t.Fatal(err)
-		}
+		c := New(1024, 10*time.Minute)
 		defer handleErr(t, c.Close)
 		var msgs []*dns.Msg
 		for i := 0; i < tt.addCount; i++ {
@@ -207,10 +198,7 @@ func BenchmarkNewKey(b *testing.B) {
 }
 
 func BenchmarkCache(b *testing.B) {
-	c, err := New(1000, 10*time.Minute)
-	if err != nil {
-		b.Fatal(err)
-	}
+	c := New(1000, 10*time.Minute)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		c.Set(uint32(n), &dns.Msg{})

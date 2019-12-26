@@ -38,34 +38,20 @@ type Server struct {
 }
 
 // NewServer returns a new server configured according to config.
-func NewServer(logger *log.Logger, config Config) (*Server, error) {
+func NewServer(logger *log.Logger, proxy *dns.Proxy, config Config) (*Server, error) {
 	server := &Server{
 		Config:     config,
 		done:       make(chan bool, 1),
 		logger:     logger,
+		proxy:      proxy,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
+	proxy.Handler = server.hijack
 
-	// Start goroutines
+	// Periodically refresh hosts
 	if t := config.DNS.refreshInterval; t > 0 {
 		server.ticker = time.NewTicker(t)
 		go server.reloadHosts()
-	}
-
-	// Configure proxy
-	var err error
-	server.proxy, err = dns.NewProxy(dns.ProxyOptions{
-		Handler:             server.hijack,
-		Resolvers:           config.DNS.Resolvers,
-		Logger:              logger,
-		LogMode:             config.DNS.logMode,
-		Network:             config.Resolver.Protocol,
-		Timeout:             config.Resolver.timeout,
-		CacheSize:           config.DNS.CacheSize,
-		CacheExpiryInterval: config.DNS.cacheExpiryInterval,
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	// Load initial hosts

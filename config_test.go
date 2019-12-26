@@ -56,9 +56,9 @@ hijack = false
 		want  int
 	}{
 		{"DNS.CacheSize", conf.DNS.CacheSize, 2048},
-		{"DNS.CacheExpiryInterval", int(conf.DNS.cacheExpiryInterval), int(5 * time.Minute)},
+		{"DNS.CacheExpiryInterval", int(conf.DNS.CacheExpiryInterval), int(5 * time.Minute)},
 		{"len(DNS.Resolvers)", len(conf.DNS.Resolvers), 2},
-		{"Resolver.Timeout", int(conf.Resolver.timeout), int(time.Second)},
+		{"Resolver.Timeout", int(conf.Resolver.Timeout), int(time.Second)},
 		{"DNS.RefreshInterval", int(conf.DNS.refreshInterval), int(48 * time.Hour)},
 		{"len(Hosts)", len(conf.Hosts), 3},
 		{"DNS.LogTTL", int(conf.DNS.LogTTL), int(72 * time.Hour)},
@@ -80,7 +80,7 @@ hijack = false
 		{"DNS.Resolvers[1]", conf.DNS.Resolvers[1], "192.0.2.2:53"},
 		{"DNS.HijackMode", conf.DNS.HijackMode, "zero"},
 		{"DNS.LogDatabase", conf.DNS.LogDatabase, "/tmp/log.db"},
-		{"DNS.LogMode", conf.DNS.LogMode, "all"},
+		{"DNS.LogMode", conf.DNS.LogModeString, "all"},
 		{"DNS.LogTTL", conf.DNS.LogTTLString, "72h"},
 		{"Resolver.Protocol", conf.Resolver.Protocol, "tcp-tls"},
 		{"Hosts[0].Source", conf.Hosts[0].URL, "file:///home/foo/hosts-good"},
