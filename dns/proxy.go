@@ -59,7 +59,7 @@ type client interface {
 
 type logger interface {
 	Printf(string, ...interface{})
-	Record(net.IP, uint16, string, string)
+	Record(net.IP, uint16, string, ...string)
 	Close() error
 }
 
@@ -137,18 +137,30 @@ func (p *Proxy) Close() error {
 	return p.cache.Close()
 }
 
+func answers(msg *dns.Msg) []string {
+	var answers []string
+	for _, answer := range msg.Answer {
+		switch v := answer.(type) {
+		case *dns.A:
+			answers = append(answers, v.A.String())
+		case *dns.AAAA:
+			answers = append(answers, v.AAAA.String())
+		case *dns.MX:
+			answers = append(answers, v.Mx)
+		}
+	}
+	return answers
+}
+
 func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 	if p.logMode == LogAll || (hijacked && p.logMode == LogHijacked) {
-		answer := ""
-		if len(msg.Answer) > 0 {
-			answer = msg.Answer[0].Header().Name
-		}
 		ip, _, err := net.SplitHostPort(w.RemoteAddr().String())
 		if err != nil {
 			p.logger.Printf("failed to parse ip: %s", w.RemoteAddr().String())
 		} else {
+			answers := answers(msg)
 			remoteAddr := net.ParseIP(ip)
-			p.logger.Record(remoteAddr, msg.Question[0].Qtype, msg.Question[0].Name, answer)
+			p.logger.Record(remoteAddr, msg.Question[0].Qtype, msg.Question[0].Name, answers...)
 		}
 	}
 	w.WriteMsg(msg)

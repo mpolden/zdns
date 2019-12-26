@@ -12,16 +12,16 @@ func TestRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1")
+	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1", "192.0.2.2")
 	// Flush queue
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)
 	}
-	entries, err := logger.db.ReadLog(1)
+	entries, err := logger.db.ReadLog(2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want, got := 1, len(entries); want != got {
+	if want, got := 2, len(entries); want != got {
 		t.Errorf("len(entries) = %d, want %d", got, want)
 	}
 }

@@ -55,7 +55,7 @@ type testLogger struct {
 
 func (l *testLogger) Close() error                           { return nil }
 func (l *testLogger) Printf(format string, v ...interface{}) {}
-func (l *testLogger) Record(remoteAddr net.IP, qtype uint16, question, answer string) {
+func (l *testLogger) Record(remoteAddr net.IP, qtype uint16, question string, answers ...string) {
 	l.question = question
 	l.remoteAddr = remoteAddr
 }

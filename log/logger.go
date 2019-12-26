@@ -34,6 +34,7 @@ type Entry struct {
 	Qtype      uint16
 	Question   string
 	Answer     string
+	answers    []string
 }
 
 type maintainer struct {
@@ -106,7 +107,7 @@ func (l *Logger) Close() error {
 }
 
 // Record records the given DNS request to the log database.
-func (l *Logger) Record(remoteAddr net.IP, qtype uint16, question, answer string) {
+func (l *Logger) Record(remoteAddr net.IP, qtype uint16, question string, answers ...string) {
 	if l.db == nil {
 		return
 	}
@@ -115,7 +116,7 @@ func (l *Logger) Record(remoteAddr net.IP, qtype uint16, question, answer string
 		RemoteAddr: remoteAddr,
 		Qtype:      qtype,
 		Question:   question,
-		Answer:     answer,
+		answers:    answers,
 	}
 }
 
@@ -141,7 +142,7 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 func (l *Logger) readQueue() {
 	defer l.wg.Done()
 	for entry := range l.queue {
-		if err := l.db.WriteLog(entry.Time, entry.RemoteAddr, entry.Qtype, entry.Question, entry.Answer); err != nil {
+		if err := l.db.WriteLog(entry.Time, entry.RemoteAddr, entry.Qtype, entry.Question, entry.answers...); err != nil {
 			l.Printf("write failed: %+v: %s", entry, err)
 		}
 	}
