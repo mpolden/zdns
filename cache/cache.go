@@ -3,7 +3,6 @@ package cache
 import (
 	"encoding/binary"
 	"hash/fnv"
-	"net"
 	"sync"
 	"time"
 
@@ -54,7 +53,7 @@ func (m *maintainer) run(cache *Cache) {
 type Value struct {
 	Question  string
 	Qtype     uint16
-	Answer    net.IP
+	Answers   []string
 	CreatedAt time.Time
 	msg       *dns.Msg
 }
@@ -147,7 +146,7 @@ func (c *Cache) Set(k uint32, msg *dns.Msg) {
 	}
 	c.entries[k] = &Value{
 		Question:  question(msg),
-		Answer:    answer(msg),
+		Answers:   answers(msg),
 		Qtype:     qtype(msg),
 		CreatedAt: now,
 		msg:       msg,
@@ -156,21 +155,24 @@ func (c *Cache) Set(k uint32, msg *dns.Msg) {
 	c.mu.Unlock()
 }
 
-func qtype(m *dns.Msg) uint16 { return m.Question[0].Qtype }
+func qtype(msg *dns.Msg) uint16 { return msg.Question[0].Qtype }
 
-func question(m *dns.Msg) string { return m.Question[0].Name }
+func question(msg *dns.Msg) string { return msg.Question[0].Name }
 
-func answer(m *dns.Msg) net.IP {
-	rr := m.Answer[0]
-	switch v := rr.(type) {
-	case *dns.A:
-		return v.A
-	case *dns.AAAA:
-		return v.AAAA
+func answers(msg *dns.Msg) []string {
+	var answers []string
+	for _, answer := range msg.Answer {
+		switch v := answer.(type) {
+		case *dns.A:
+			answers = append(answers, v.A.String())
+		case *dns.AAAA:
+			answers = append(answers, v.AAAA.String())
+		case *dns.MX:
+			answers = append(answers, v.Mx)
+		}
 	}
-	return net.IPv4zero
+	return answers
 }
-
 func (c *Cache) deleteExpired() {
 	c.mu.Lock()
 	for k, v := range c.entries {

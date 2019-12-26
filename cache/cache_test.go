@@ -78,34 +78,55 @@ func awaitExpiry(t *testing.T, c *Cache, k uint32) {
 }
 
 func TestCache(t *testing.T) {
-	msg := newA("foo.", 60, net.ParseIP("192.0.2.1"))
+	msg := newA("foo.", 60, net.ParseIP("192.0.2.1"), net.ParseIP("192.0.2.2"))
 	msgWithZeroTTL := newA("bar.", 0, net.ParseIP("192.0.2.2"))
 	msgFailure := newA("baz.", 60, net.ParseIP("192.0.2.2"))
 	msgFailure.Rcode = dns.RcodeServerFailure
 
-	tt := date(2019, 1, 1)
+	createdAt := date(2019, 1, 1)
 	c := New(100, time.Duration(10*time.Millisecond))
 	defer handleErr(t, c.Close)
 	var tests = []struct {
 		msg                  *dns.Msg
 		createdAt, queriedAt time.Time
 		ok                   bool
+		value                *Value
 	}{
-		{msg, tt, tt, true},                        // Not expired when query time == create time
-		{msg, tt, tt.Add(30 * time.Second), true},  // Not expired when below TTL
-		{msg, tt, tt.Add(60 * time.Second), true},  // Not expired until TTL exceeds
-		{msg, tt, tt.Add(61 * time.Second), false}, // Expired
-		{msgWithZeroTTL, tt, tt, false},            // 0 TTL is not cached
-		{msgFailure, tt, tt, false},                // Non-cacheable rcode
+		{msg, createdAt, createdAt, true, &Value{
+			CreatedAt: createdAt,
+			Question:  "foo.",
+			Qtype:     1,
+			Answers:   []string{"192.0.2.1", "192.0.2.2"},
+			msg:       msg},
+		}, // Not expired when query time == create time
+		{msg, createdAt, createdAt.Add(30 * time.Second), true, &Value{
+			CreatedAt: createdAt,
+			Question:  "foo.",
+			Qtype:     1,
+			Answers:   []string{"192.0.2.1", "192.0.2.2"},
+			msg:       msg},
+		}, // Not expired when below TTL
+		{msg, createdAt, createdAt.Add(60 * time.Second), true, &Value{
+			CreatedAt: createdAt,
+			Question:  "foo.",
+			Qtype:     1,
+			Answers:   []string{"192.0.2.1", "192.0.2.2"},
+			msg:       msg},
+		}, //,  Not expired until TTL exceeds
+		{msg, createdAt, createdAt.Add(61 * time.Second), false, nil}, // Expired
+		{msgWithZeroTTL, createdAt, createdAt, false, nil},            // 0 TTL is not cached
+		{msgFailure, createdAt, createdAt, false, nil},                // Non-cacheable rcode
 	}
 	for i, tt := range tests {
 		c.now = func() time.Time { return tt.createdAt }
 		k := NewKey(tt.msg.Question[0].Name, tt.msg.Question[0].Qtype, tt.msg.Question[0].Qclass)
 		c.Set(k, tt.msg)
 		c.now = func() time.Time { return tt.queriedAt }
-		msg, ok := c.Get(k)
-		if ok != tt.ok {
+		if msg, ok := c.Get(k); ok != tt.ok {
 			t.Errorf("#%d: Get(%d) = (%+v, %t), want (_, %t)", i, k, msg, ok, tt.ok)
+		}
+		if v, ok := c.getValue(k); ok != tt.ok || !reflect.DeepEqual(v, tt.value) {
+			t.Errorf("#%d: getValue(%d) = (%+v, %t), want (%+v, %t)", i, k, v, ok, tt.value, tt.ok)
 		}
 		if !tt.ok {
 			awaitExpiry(t, c, k)
