@@ -66,7 +66,7 @@ func awaitExpiry(t *testing.T, c *Cache, k uint32) {
 	now := time.Now()
 	for {
 		c.mu.RLock()
-		if _, ok := c.entries[k]; !ok {
+		if _, ok := c.values[k]; !ok {
 			break
 		}
 		c.mu.RUnlock()
@@ -131,7 +131,7 @@ func TestCache(t *testing.T) {
 		if !tt.ok {
 			awaitExpiry(t, c, k)
 		}
-		if _, ok := c.entries[k]; ok != tt.ok {
+		if _, ok := c.values[k]; ok != tt.ok {
 			t.Errorf("#%d: Cache[%d] = %t, want %t", i, k, ok, tt.ok)
 		}
 	}
@@ -156,8 +156,8 @@ func TestCacheCapacity(t *testing.T) {
 			msgs = append(msgs, m)
 			c.Set(k, m)
 		}
-		if got := len(c.entries); got != tt.size {
-			t.Errorf("#%d: len(entries) = %d, want %d", i, got, tt.size)
+		if got := len(c.values); got != tt.size {
+			t.Errorf("#%d: len(values) = %d, want %d", i, got, tt.size)
 		}
 		if tt.capacity > 0 && tt.addCount > tt.capacity && tt.capacity == tt.size {
 			lastAdded := msgs[tt.addCount-1].Question[0]
@@ -177,12 +177,14 @@ func TestCacheCapacity(t *testing.T) {
 func TestCacheList(t *testing.T) {
 	var tests = []struct {
 		addCount, listCount, wantCount int
+		expire                         bool
 	}{
-		{0, 0, 0},
-		{1, 0, 0},
-		{1, 1, 1},
-		{2, 1, 1},
-		{2, 3, 2},
+		{0, 0, 0, false},
+		{1, 0, 0, false},
+		{1, 1, 1, false},
+		{2, 1, 1, false},
+		{2, 3, 2, false},
+		{2, 0, 0, true},
 	}
 	for i, tt := range tests {
 		c := New(1024, 10*time.Minute)
@@ -194,7 +196,9 @@ func TestCacheList(t *testing.T) {
 			msgs = append(msgs, m)
 			c.Set(k, m)
 		}
-
+		if tt.expire {
+			c.now = func() time.Time { return time.Now().Add(time.Minute).Add(time.Second) }
+		}
 		values := c.List(tt.listCount)
 		if got := len(values); got != tt.wantCount {
 			t.Errorf("#%d: len(List(%d)) = %d, want %d", i, tt.listCount, got, tt.wantCount)
@@ -203,7 +207,6 @@ func TestCacheList(t *testing.T) {
 		for _, v := range values {
 			gotMsgs = append(gotMsgs, v.msg)
 		}
-
 		msgs = reverse(msgs)
 		want := msgs[:tt.wantCount]
 		if !reflect.DeepEqual(want, gotMsgs) {

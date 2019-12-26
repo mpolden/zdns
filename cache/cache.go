@@ -9,14 +9,14 @@ import (
 	"github.com/miekg/dns"
 )
 
-// Cache represents a cache of DNS entries. Use New to initialize a new cache.
+// Cache represents a cache of DNS responses. Use New to initialize a new cache.
 type Cache struct {
 	capacity   int
 	now        func() time.Time
 	maintainer *maintainer
 	mu         sync.RWMutex
 	wg         sync.WaitGroup
-	entries    map[uint32]*Value
+	values     map[uint32]*Value
 	keys       []uint32
 }
 
@@ -61,7 +61,7 @@ type Value struct {
 // TTL returns the TTL of this cache value.
 func (v *Value) TTL() time.Duration { return minTTL(v.msg) }
 
-// New creates a new cache of given capacity. Stale cache entries are removed at expiryInterval.
+// New creates a new cache of given capacity. Stale cache values are removed every expiryInterval.
 func New(capacity int, expiryInterval time.Duration) *Cache {
 	if capacity < 0 {
 		capacity = 0
@@ -72,7 +72,7 @@ func New(capacity int, expiryInterval time.Duration) *Cache {
 	cache := &Cache{
 		now:      time.Now,
 		capacity: capacity,
-		entries:  make(map[uint32]*Value, capacity),
+		values:   make(map[uint32]*Value, capacity),
 	}
 	maintain(cache, expiryInterval)
 	return cache
@@ -106,7 +106,7 @@ func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
 
 func (c *Cache) getValue(k uint32) (*Value, bool) {
 	c.mu.RLock()
-	v, ok := c.entries[k]
+	v, ok := c.values[k]
 	c.mu.RUnlock()
 	if !ok || c.isExpired(v) {
 		return nil, false
@@ -122,7 +122,10 @@ func (c *Cache) List(n int) []*Value {
 		if len(values) == n {
 			break
 		}
-		v, _ := c.getValue(c.keys[i])
+		v, ok := c.getValue(c.keys[i])
+		if !ok {
+			continue
+		}
 		values = append(values, v)
 	}
 	c.mu.RUnlock()
@@ -140,11 +143,11 @@ func (c *Cache) Set(k uint32, msg *dns.Msg) {
 	}
 	now := c.now()
 	c.mu.Lock()
-	if len(c.entries) == c.capacity && c.capacity > 0 {
-		delete(c.entries, c.keys[0])
+	if len(c.values) == c.capacity && c.capacity > 0 {
+		delete(c.values, c.keys[0])
 		c.keys = c.keys[1:]
 	}
-	c.entries[k] = &Value{
+	c.values[k] = &Value{
 		Question:  question(msg),
 		Answers:   answers(msg),
 		Qtype:     qtype(msg),
@@ -175,9 +178,9 @@ func answers(msg *dns.Msg) []string {
 }
 func (c *Cache) deleteExpired() {
 	c.mu.Lock()
-	for k, v := range c.entries {
+	for k, v := range c.values {
 		if c.isExpired(v) {
-			delete(c.entries, k)
+			delete(c.values, k)
 		}
 	}
 	c.mu.Unlock()
