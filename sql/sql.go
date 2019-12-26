@@ -101,7 +101,7 @@ INNER JOIN rr_question ON rr_question.id = rr_question_id
 INNER JOIN rr_type ON rr_type.id = rr_type_id
 INNER JOIN log_rr_answer ON log_rr_answer.log_id = log.id
 INNER JOIN rr_answer ON rr_answer.id = log_rr_answer.rr_answer_id
-ORDER BY time DESC
+ORDER BY time DESC, rr_answer.id DESC
 LIMIT $1
 `
 	var entries []LogEntry

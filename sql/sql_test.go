@@ -16,21 +16,23 @@ type rowCount struct {
 var tests = []struct {
 	question   string
 	qtype      uint16
-	answer     string
+	answers    []string
 	t          time.Time
 	remoteAddr net.IP
 	rowCounts  []rowCount
 }{
-	{"foo.example.com", 1, "192.0.2.1", time.Date(2019, 6, 15, 22, 15, 10, 0, time.UTC), net.IPv4(192, 0, 2, 100),
+	{"foo.example.com", 1, []string{"192.0.2.1"}, time.Date(2019, 6, 15, 22, 15, 10, 0, time.UTC), net.IPv4(192, 0, 2, 100),
 		[]rowCount{{"rr_question", 1}, {"rr_answer", 1}, {"log", 1}, {"rr_type", 1}, {"remote_addr", 1}}},
-	{"foo.example.com", 1, "192.0.2.1", time.Date(2019, 6, 15, 22, 16, 20, 0, time.UTC), net.IPv4(192, 0, 2, 100),
+	{"foo.example.com", 1, []string{"192.0.2.1"}, time.Date(2019, 6, 15, 22, 16, 20, 0, time.UTC), net.IPv4(192, 0, 2, 100),
 		[]rowCount{{"rr_question", 1}, {"rr_answer", 1}, {"log", 2}, {"rr_type", 1}, {"remote_addr", 1}}},
-	{"bar.example.com", 1, "192.0.2.2", time.Date(2019, 6, 15, 22, 17, 30, 0, time.UTC), net.IPv4(192, 0, 2, 101),
+	{"bar.example.com", 1, []string{"192.0.2.2"}, time.Date(2019, 6, 15, 22, 17, 30, 0, time.UTC), net.IPv4(192, 0, 2, 101),
 		[]rowCount{{"rr_question", 2}, {"rr_answer", 2}, {"log", 3}, {"rr_type", 1}, {"remote_addr", 2}}},
-	{"bar.example.com", 1, "192.0.2.2", time.Date(2019, 6, 15, 22, 18, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+	{"bar.example.com", 1, []string{"192.0.2.2"}, time.Date(2019, 6, 15, 22, 18, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
 		[]rowCount{{"rr_question", 2}, {"rr_answer", 2}, {"log", 4}, {"rr_type", 1}, {"remote_addr", 3}}},
-	{"bar.example.com", 28, "2001:db8::1", time.Date(2019, 6, 15, 23, 4, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+	{"bar.example.com", 28, []string{"2001:db8::1"}, time.Date(2019, 6, 15, 23, 4, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
 		[]rowCount{{"rr_question", 2}, {"rr_answer", 3}, {"log", 5}, {"rr_type", 2}, {"remote_addr", 3}}},
+	{"bar.example.com", 28, []string{"2001:db8::2", "2001:db8::3"}, time.Date(2019, 6, 15, 23, 35, 0, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+		[]rowCount{{"rr_question", 2}, {"rr_answer", 5}, {"log", 6}, {"rr_type", 2}, {"remote_addr", 3}}},
 }
 
 func testClient() *Client {
@@ -52,8 +54,8 @@ func count(t *testing.T, client *Client, query string, args ...interface{}) int 
 func TestWriteLog(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answer); err != nil {
-			t.Errorf("#%d: WriteLog(%q, %s, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.qtype, tt.question, tt.answer, err)
+		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answers...); err != nil {
+			t.Errorf("#%d: WriteLog(%q, %s, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.qtype, tt.question, tt.answers, err)
 		}
 		for _, rowCount := range tt.rowCounts {
 			rows := count(t, c, "SELECT COUNT(*) FROM "+rowCount.table+" LIMIT 1")
@@ -67,20 +69,25 @@ func TestWriteLog(t *testing.T) {
 func TestReadLog(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answer); err != nil {
-			t.Fatalf("#%d: WriteLog(%q, %s, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.qtype, tt.question, tt.answer, err)
+		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answers...); err != nil {
+			t.Fatalf("#%d: WriteLog(%q, %s, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.qtype, tt.question, tt.answers, err)
 		}
 	}
 	entries := []LogEntry{
+		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::3", Time: 1560641700, RemoteAddr: net.IPv4(192, 0, 2, 102)},
+		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::2", Time: 1560641700, RemoteAddr: net.IPv4(192, 0, 2, 102)},
 		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::1", Time: 1560639880, RemoteAddr: net.IPv4(192, 0, 2, 102)},
 		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637120, RemoteAddr: net.IPv4(192, 0, 2, 102)},
 		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637050, RemoteAddr: net.IPv4(192, 0, 2, 101)},
 		{Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636980, RemoteAddr: net.IPv4(192, 0, 2, 100)},
 		{Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636910, RemoteAddr: net.IPv4(192, 0, 2, 100)},
 	}
-	for _, n := range []int{1, len(entries)} {
+	for n := 1; n <= len(entries); n++ {
 		want := entries[:n]
 		got, err := c.ReadLog(n)
+		if len(got) != len(want) {
+			t.Errorf("len(got) = %d, want %d", len(got), len(want))
+		}
 		if err != nil || !reflect.DeepEqual(got, want) {
 			t.Errorf("ReadLog(%d) = (%+v, %v), want (%+v, %v)", n, got, err, want, nil)
 		}
@@ -90,8 +97,8 @@ func TestReadLog(t *testing.T) {
 func TestDeleteLogBefore(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answer); err != nil {
-			t.Fatalf("#%d: WriteLog(%s, %s, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.question, tt.answer, err)
+		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answers...); err != nil {
+			t.Fatalf("#%d: WriteLog(%s, %s, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.question, tt.answers, err)
 		}
 	}
 	u := tests[1].t.Add(time.Second)
@@ -100,6 +107,8 @@ func TestDeleteLogBefore(t *testing.T) {
 	}
 
 	want := []LogEntry{
+		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::3", Time: 1560641700, RemoteAddr: net.IPv4(192, 0, 2, 102)},
+		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::2", Time: 1560641700, RemoteAddr: net.IPv4(192, 0, 2, 102)},
 		{Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::1", Time: 1560639880, RemoteAddr: net.IPv4(192, 0, 2, 102)},
 		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637120, RemoteAddr: net.IPv4(192, 0, 2, 102)},
 		{Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637050, RemoteAddr: net.IPv4(192, 0, 2, 101)},
