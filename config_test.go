@@ -111,60 +111,60 @@ hijack = false
 
 func TestConfigErrors(t *testing.T) {
 	baseConf := "[dns]\nlisten = \"0.0.0.0:53\"\n"
-	conf1 := baseConf + "cache_size = -1"
-	conf2 := baseConf + `
+	conf0 := baseConf + "cache_size = -1"
+	conf1 := baseConf + `
 hijack_mode = "foo"
 `
-	conf3 := baseConf + `
+	conf2 := baseConf + `
 hosts_refresh_interval = "foo"
 `
-	conf4 := baseConf + `
+	conf3 := baseConf + `
 hosts_refresh_interval = "-1h"
 `
-	conf5 := baseConf + `
+	conf4 := baseConf + `
 resolvers = ["foo"]
 `
-	conf6 := baseConf + `
+	conf5 := baseConf + `
 [resolver]
 protocol = "foo"
 `
-	conf7 := baseConf + `
+	conf6 := baseConf + `
 [resolver]
 timeout = "foo"
 `
-	conf8 := baseConf + `
+	conf7 := baseConf + `
 [resolver]
 timeout = "-1s"
 `
-	conf9 := baseConf + `
+	conf8 := baseConf + `
 [[hosts]]
 url = ":foo"
 `
-	conf10 := baseConf + `
+	conf9 := baseConf + `
 [[hosts]]
 url = "foo://bar"
 `
-	conf11 := baseConf + `
+	conf10 := baseConf + `
 [[hosts]]
 url = "file:///tmp/foo"
 timeout = "1s"
 `
-	conf12 := baseConf + `
+	conf11 := baseConf + `
 [[hosts]]
 entries = ["0.0.0.0 host1"]
 timeout = "1s"
 `
-	conf13 := baseConf + `
+	conf12 := baseConf + `
 cache_expiry_interval = "foo"
 `
-	conf14 := baseConf + `
+	conf13 := baseConf + `
 log_mode = "foo"
 
 [resolver]
 timeout = "1s"
 `
 
-	conf15 := baseConf + `
+	conf14 := baseConf + `
 log_mode = "hijacked"
 
 [resolver]
@@ -175,21 +175,21 @@ timeout = "1s"
 		err string
 	}{
 
-		{conf1, "cache size must be >= 0"},
-		{conf2, "invalid hijack mode: foo"},
-		{conf3, "invalid refresh interval: time: invalid duration foo"},
-		{conf4, "refresh interval must be >= 0"},
-		{conf5, "invalid resolver: address foo: missing port in address"},
-		{conf6, "invalid resolver protocol: foo"},
-		{conf7, "invalid resolver timeout: foo"},
-		{conf8, "resolver timeout must be >= 0"},
-		{conf9, ":foo: invalid url: parse :foo: missing protocol scheme"},
-		{conf10, "foo://bar: unsupported scheme: foo"},
-		{conf11, "file:///tmp/foo: timeout cannot be set for file url"},
-		{conf12, "[0.0.0.0 host1]: timeout cannot be set for inline hosts"},
-		{conf13, "invalid cache expiry interval: time: invalid duration foo"},
-		{conf14, "invalid log mode: foo"},
-		{conf15, `log_mode = "hijacked" requires log_database to be set`},
+		{conf0, "cache size must be >= 0"},
+		{conf1, "invalid hijack mode: foo"},
+		{conf2, "invalid refresh interval: time: invalid duration foo"},
+		{conf3, "refresh interval must be >= 0"},
+		{conf4, "invalid resolver: address foo: missing port in address"},
+		{conf5, "invalid resolver protocol: foo"},
+		{conf6, "invalid resolver timeout: foo"},
+		{conf7, "resolver timeout must be >= 0"},
+		{conf8, ":foo: invalid url: parse :foo: missing protocol scheme"},
+		{conf9, "foo://bar: unsupported scheme: foo"},
+		{conf10, "file:///tmp/foo: timeout cannot be set for file url"},
+		{conf11, "[0.0.0.0 host1]: timeout cannot be set for inline hosts"},
+		{conf12, "invalid cache expiry interval: time: invalid duration foo"},
+		{conf13, "invalid log mode: foo"},
+		{conf14, `log_mode = "hijacked" requires log_database to be set`},
 	}
 	for i, tt := range tests {
 		var got string

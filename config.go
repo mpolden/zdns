@@ -59,12 +59,18 @@ type Hosts struct {
 
 func newConfig() Config {
 	c := Config{}
-	c.DNS.Listen = "127.0.0.1:53"
+	// Default values
+	c.DNS.Listen = "127.0.0.1:53000"
+	c.DNS.ListenHTTP = "127.0.0.1:8053"
 	c.DNS.Protocol = "udp"
-	c.DNS.CacheSize = 1024
+	c.DNS.CacheSize = 4096
 	c.DNS.RefreshInterval = "48h"
+	c.DNS.Resolvers = []string{
+		"1.1.1.1:853",
+		"1.0.0.1:853",
+	}
 	c.Resolver.TimeoutString = "5s"
-	c.Resolver.Protocol = "udp"
+	c.Resolver.Protocol = "tcp-tls"
 	return c
 }
 
