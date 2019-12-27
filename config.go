@@ -154,15 +154,25 @@ func (c *Config) load() error {
 		}
 	}
 	for _, r := range c.DNS.Resolvers {
-		if _, _, err := net.SplitHostPort(r); err != nil {
-			return fmt.Errorf("invalid resolver: %s", err)
+		if c.Resolver.Protocol == "https" {
+			u, err := url.Parse(r)
+			if err != nil {
+				return fmt.Errorf("invalid resolver %s: %w", r, err)
+			}
+			if u.Scheme != "https" {
+				return fmt.Errorf("protocol %s requires https scheme for resolver %s", c.Resolver.Protocol, r)
+			}
+		} else {
+			if _, _, err := net.SplitHostPort(r); err != nil {
+				return fmt.Errorf("invalid resolver: %s", err)
+			}
 		}
 	}
 	if c.Resolver.Protocol == "udp" {
 		c.Resolver.Protocol = "" // Empty means UDP when passed to dns.ListenAndServe
 	}
 	switch c.Resolver.Protocol {
-	case "", "tcp", "tcp-tls":
+	case "", "tcp", "tcp-tls", "https":
 	default:
 		return fmt.Errorf("invalid resolver protocol: %s", c.Resolver.Protocol)
 	}

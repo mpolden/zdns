@@ -7,10 +7,11 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
+	"github.com/mpolden/zdns/dns/http"
 )
 
 const (
-	// TypeA represents the resource record type A, an IPv4 address.
+	// TypeA represents th resource record type A, an IPv4 address.
 	TypeA = dns.TypeA
 	// TypeAAAA represents the resource record type AAAA, an IPv6 address.
 	TypeAAAA = dns.TypeAAAA
@@ -73,12 +74,18 @@ type logger interface {
 
 // NewProxy creates a new DNS proxy.
 func NewProxy(cache *cache.Cache, logger logger, options ProxyOptions) (*Proxy, error) {
+	var c client
+	if options.Network == "https" {
+		c = http.NewClient(options.Timeout)
+	} else {
+		c = &dns.Client{Net: options.Network, Timeout: options.Timeout}
+	}
 	return &Proxy{
 		logger:    logger,
 		cache:     cache,
 		resolvers: options.Resolvers,
 		logMode:   options.LogMode,
-		client:    &dns.Client{Net: options.Network, Timeout: options.Timeout},
+		client:    c,
 	}, nil
 }
 

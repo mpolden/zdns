@@ -170,6 +170,12 @@ log_mode = "hijacked"
 [resolver]
 timeout = "1s"
 `
+
+	conf15 := baseConf + `
+resolvers = ["http://example.com"]
+[resolver]
+protocol = "https"
+`
 	var tests = []struct {
 		in  string
 		err string
@@ -190,6 +196,7 @@ timeout = "1s"
 		{conf12, "invalid cache expiry interval: time: invalid duration foo"},
 		{conf13, "invalid log mode: foo"},
 		{conf14, `log_mode = "hijacked" requires log_database to be set`},
+		{conf15, "protocol https requires https scheme for resolver http://example.com"},
 	}
 	for i, tt := range tests {
 		var got string

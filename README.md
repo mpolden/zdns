@@ -16,7 +16,8 @@ configure.
 * **Reliable**: Built with Go and [miekg/dns](https://github.com/miekg/dns) - a
   mature DNS library.
 * **Secure**: Protect your DNS requests from snooping and tampering using [DNS
-  over TLS](https://en.wikipedia.org/wiki/DNS_over_TLS) for upstream resolvers.
+  over TLS](https://en.wikipedia.org/wiki/DNS_over_TLS) or [DNS over
+  HTTPS](https://en.wikipedia.org/wiki/DNS_over_HTTPS) for upstream resolvers.
 * **Self-contained**: Zero run-time dependencies make it easy to deploy and
   maintain _zdns_.
 * **Observable**: _zdns_ supports DNS logging which makes it easy to observe what's

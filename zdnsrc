@@ -28,6 +28,12 @@
 #   "1.1.1.1:853",
 #   "1.0.0.1:853",
 # ]
+#
+# Or using DNS-over-HTTPS:
+#
+# resolvers = [
+#   "https://cloudflare-dns.com/dns-query",
+# ]
 
 # Configure how to answer hijacked DNS requests.
 #
@@ -66,11 +72,15 @@
 # listen_http = "127.0.0.1:8053"
 
 [resolver]
-# Set the protocol to use when sending requests to upstream resolvers. Support protocols:
+# Set the protocol to use when sending requests to upstream resolvers. Supported protocols:
 #
-# tcp-tls: Use encrypted protocol (DNS-over-TLS). Note that the configured upstream resolvers must support this protocol.
-# udp: Plain DNS over UDP.
-# tcp: Plain DNS over TCP.
+# tcp-tls: DNS over TLS (encrypted). Note that the upstream resolver must
+#          support this protocol.
+# https:   DNS over HTTPS (encrypted). Only recommended for networks where tcp-tls
+#          does not work, due to e.g. aggressive firewalls. Note that the upstream
+#          resolver must support this protocol.
+# udp:     DNS over UDP (plaintext).
+# tcp:     DNS over TCP (plaintext).
 #
 # protocol = "tcp-tls"
 
