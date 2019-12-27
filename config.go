@@ -94,7 +94,7 @@ func (c *Config) load() error {
 	}
 	c.DNS.CacheExpiryInterval, err = time.ParseDuration(c.DNS.CacheExpiryIntervalString)
 	if err != nil {
-		return fmt.Errorf("invalid cache expiry interval: %s", err)
+		return fmt.Errorf("invalid cache expiry interval: %w", err)
 	}
 	switch c.DNS.HijackMode {
 	case "", "zero":
@@ -111,7 +111,7 @@ func (c *Config) load() error {
 	}
 	c.DNS.refreshInterval, err = time.ParseDuration(c.DNS.RefreshInterval)
 	if err != nil {
-		return fmt.Errorf("invalid refresh interval: %s", err)
+		return fmt.Errorf("invalid refresh interval: %w", err)
 	}
 	if c.DNS.refreshInterval < 0 {
 		return fmt.Errorf("refresh interval must be >= 0")
@@ -123,7 +123,7 @@ func (c *Config) load() error {
 		if hs.URL != "" {
 			url, err := url.Parse(hs.URL)
 			if err != nil {
-				return fmt.Errorf("%s: invalid url: %s", hs.URL, err)
+				return fmt.Errorf("%s: invalid url: %w", hs.URL, err)
 			}
 			switch url.Scheme {
 			case "file", "http", "https":
@@ -164,7 +164,7 @@ func (c *Config) load() error {
 			}
 		} else {
 			if _, _, err := net.SplitHostPort(r); err != nil {
-				return fmt.Errorf("invalid resolver: %s", err)
+				return fmt.Errorf("invalid resolver: %w", err)
 			}
 		}
 	}
