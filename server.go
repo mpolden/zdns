@@ -77,7 +77,7 @@ func (s *Server) httpGet(url string) (io.ReadCloser, error) {
 	return body, nil
 }
 
-func (s *Server) readHosts(name string, timeout time.Duration) (hosts.Hosts, error) {
+func (s *Server) readHosts(name string) (hosts.Hosts, error) {
 	url, err := url.Parse(name)
 	if err != nil {
 		return nil, err
@@ -133,7 +133,7 @@ func (s *Server) loadHosts() {
 		if h.URL != "" {
 			src = h.URL
 			var err error
-			hs1, err = s.readHosts(h.URL, h.timeout)
+			hs1, err = s.readHosts(h.URL)
 			if err != nil {
 				s.logger.Printf("failed to read hosts from %s: %s", h.URL, err)
 				continue
