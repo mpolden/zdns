@@ -61,21 +61,26 @@ func TestRequests(t *testing.T) {
 	srv.cache.Set(1, newA("1.example.com.", 60, net.IPv4(192, 0, 2, 200)))
 	srv.cache.Set(2, newA("2.example.com.", 30, net.IPv4(192, 0, 2, 201)))
 
-	var cacheResponse = "[{\"time\":\"RFC3339\",\"ttl\":30,\"type\":\"A\",\"question\":\"2.example.com.\",\"answers\":[\"192.0.2.201\"],\"rcode\":\"NOERROR\"}," +
-		"{\"time\":\"RFC3339\",\"ttl\":60,\"type\":\"A\",\"question\":\"1.example.com.\",\"answers\":[\"192.0.2.200\"],\"rcode\":\"NOERROR\"}]"
-	var logResponse = "[{\"time\":\"RFC3339\",\"remote_addr\":\"127.0.0.254\",\"type\":\"AAAA\",\"question\":\"example.com.\",\"answers\":[\"2001:db8::1\"]}," +
-		"{\"time\":\"RFC3339\",\"remote_addr\":\"127.0.0.42\",\"type\":\"A\",\"question\":\"example.com.\",\"answers\":[\"192.0.2.101\",\"192.0.2.100\"]}]"
+	cr1 := `[{"time":"RFC3339","ttl":30,"type":"A","question":"2.example.com.","answers":["192.0.2.201"],"rcode":"NOERROR"},` +
+		`{"time":"RFC3339","ttl":60,"type":"A","question":"1.example.com.","answers":["192.0.2.200"],"rcode":"NOERROR"}]`
+	cr2 := `[{"time":"RFC3339","ttl":30,"type":"A","question":"2.example.com.","answers":["192.0.2.201"],"rcode":"NOERROR"}]`
+	lr1 := `[{"time":"RFC3339","remote_addr":"127.0.0.254","type":"AAAA","question":"example.com.","answers":["2001:db8::1"]},` +
+		`{"time":"RFC3339","remote_addr":"127.0.0.42","type":"A","question":"example.com.","answers":["192.0.2.101","192.0.2.100"]}]`
+	lr2 := `[{"time":"RFC3339","remote_addr":"127.0.0.254","type":"AAAA","question":"example.com.","answers":["2001:db8::1"]}]`
 
 	var tests = []struct {
 		method   string
-		body     string
 		url      string
 		response string
 		status   int
 	}{
-		{http.MethodGet, "", "/not-found", `{"status":404,"message":"Resource not found"}`, 404},
-		{http.MethodGet, "", "/log/v1/", logResponse, 200},
-		{http.MethodGet, "", "/cache/v1/", cacheResponse, 200},
+		{http.MethodGet, "/not-found", `{"status":404,"message":"Resource not found"}`, 404},
+		{http.MethodGet, "/log/v1/", lr1, 200},
+		{http.MethodGet, "/log/v1/?n=foo", lr1, 200},
+		{http.MethodGet, "/log/v1/?n=1", lr2, 200},
+		{http.MethodGet, "/cache/v1/", cr1, 200},
+		{http.MethodGet, "/cache/v1/?n=foo", cr1, 200},
+		{http.MethodGet, "/cache/v1/?n=1", cr2, 200},
 	}
 
 	for i, tt := range tests {

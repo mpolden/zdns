@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/mpolden/zdns/cache"
@@ -93,8 +94,18 @@ func notFoundHandler(w http.ResponseWriter, r *http.Request) (interface{}, *http
 	}
 }
 
+func listCountFrom(r *http.Request) int {
+	defaultCount := 100
+	param := r.URL.Query().Get("n")
+	n, err := strconv.Atoi(param)
+	if err != nil {
+		return defaultCount
+	}
+	return n
+}
+
 func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	cacheValues := s.cache.List(100)
+	cacheValues := s.cache.List(listCountFrom(r))
 	entries := make([]entry, 0, len(cacheValues))
 	for _, v := range cacheValues {
 		entries = append(entries, entry{
@@ -110,7 +121,7 @@ func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) (interface
 }
 
 func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	logEntries, err := s.logger.Get(100)
+	logEntries, err := s.logger.Get(listCountFrom(r))
 	if err != nil {
 		return nil, &httpError{
 			err:    err,
