@@ -142,7 +142,7 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 }
 
 // Close shuts down the HTTP server.
-func (s *Server) Close() error { return s.server.Shutdown(context.Background()) }
+func (s *Server) Close() error { return s.server.Shutdown(context.TODO()) }
 
 // ListenAndServe starts the HTTP server listening on the configured address.
 func (s *Server) ListenAndServe() error {
