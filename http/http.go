@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 	"net/http"
 	"strconv"
@@ -51,48 +50,10 @@ func NewServer(logger *log.Logger, cache *cache.Cache, addr string) *Server {
 }
 
 func (s *Server) handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.Handle("/cache/v1/", appHandler(s.cacheHandler))
-	mux.Handle("/log/v1/", appHandler(s.logHandler))
-	mux.Handle("/", appHandler(notFoundHandler))
-	return requestFilter(mux)
-}
-
-type appHandler func(http.ResponseWriter, *http.Request) (interface{}, *httpError)
-
-func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	data, e := fn(w, r)
-	if e != nil { // e is *Error, not os.Error.
-		if e.Message == "" {
-			e.Message = e.err.Error()
-		}
-		out, err := json.Marshal(e)
-		if err != nil {
-			panic(err)
-		}
-		w.WriteHeader(e.Status)
-		w.Write(out)
-	} else if data != nil {
-		out, err := json.Marshal(data)
-		if err != nil {
-			panic(err)
-		}
-		w.Write(out)
-	}
-}
-
-func requestFilter(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		next.ServeHTTP(w, r)
-	})
-}
-
-func notFoundHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	return nil, &httpError{
-		Status:  http.StatusNotFound,
-		Message: "Resource not found",
-	}
+	r := newRouter()
+	r.route("GET", "/cache/v1/", s.cacheHandler)
+	r.route("GET", "/log/v1/", s.logHandler)
+	return r.handler()
 }
 
 func listCountFrom(r *http.Request) int {

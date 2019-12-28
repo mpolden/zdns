@@ -39,17 +39,17 @@ func testServer() (*httptest.Server, *Server) {
 	return httptest.NewServer(server.handler()), &server
 }
 
-func httpGet(url string) (string, int, error) {
+func httpGet(url string) (*http.Response, string, error) {
 	res, err := http.Get(url)
 	if err != nil {
-		return "", 0, err
+		return nil, "", err
 	}
 	defer res.Body.Close()
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return "", 0, err
+		return nil, "", err
 	}
-	return string(data), res.StatusCode, nil
+	return res, string(data), nil
 }
 
 func TestRequests(t *testing.T) {
@@ -84,21 +84,25 @@ func TestRequests(t *testing.T) {
 
 	for i, tt := range tests {
 		var (
-			data   string
-			status int
-			err    error
+			resp *http.Response
+			data string
+			err  error
 		)
 		switch tt.method {
 		case http.MethodGet:
-			data, status, err = httpGet(httpSrv.URL + tt.url)
+			resp, data, err = httpGet(httpSrv.URL + tt.url)
 		default:
 			t.Fatalf("#%d: invalid method: %s", i, tt.method)
 		}
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := status; status != tt.status {
+		if got := resp.StatusCode; got != tt.status {
 			t.Errorf("#%d: %s %s returned status %d, want %d", i, tt.method, tt.url, got, tt.status)
+		}
+
+		if got, want := resp.Header.Get("Content-Type"), "application/json"; got != want {
+			t.Errorf("#%d: got Content-Type %q, want %q", i, got, want)
 		}
 
 		got := string(data)
