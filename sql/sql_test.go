@@ -16,24 +16,25 @@ type rowCount struct {
 var tests = []struct {
 	question   string
 	qtype      uint16
+	hijacked   bool
 	answers    []string
 	t          time.Time
 	remoteAddr net.IP
 	rowCounts  []rowCount
 }{
-	{"foo.example.com", 1, []string{"192.0.2.1"}, time.Date(2019, 6, 15, 22, 15, 10, 0, time.UTC), net.IPv4(192, 0, 2, 100),
+	{"foo.example.com", 1, false, []string{"192.0.2.1"}, time.Date(2019, 6, 15, 22, 15, 10, 0, time.UTC), net.IPv4(192, 0, 2, 100),
 		[]rowCount{{"rr_question", 1}, {"rr_answer", 1}, {"log", 1}, {"rr_type", 1}, {"remote_addr", 1}}},
-	{"foo.example.com", 1, []string{"192.0.2.1"}, time.Date(2019, 6, 15, 22, 16, 20, 0, time.UTC), net.IPv4(192, 0, 2, 100),
+	{"foo.example.com", 1, true, []string{"192.0.2.1"}, time.Date(2019, 6, 15, 22, 16, 20, 0, time.UTC), net.IPv4(192, 0, 2, 100),
 		[]rowCount{{"rr_question", 1}, {"rr_answer", 1}, {"log", 2}, {"rr_type", 1}, {"remote_addr", 1}}},
-	{"bar.example.com", 1, []string{"192.0.2.2"}, time.Date(2019, 6, 15, 22, 17, 30, 0, time.UTC), net.IPv4(192, 0, 2, 101),
+	{"bar.example.com", 1, false, []string{"192.0.2.2"}, time.Date(2019, 6, 15, 22, 17, 30, 0, time.UTC), net.IPv4(192, 0, 2, 101),
 		[]rowCount{{"rr_question", 2}, {"rr_answer", 2}, {"log", 3}, {"rr_type", 1}, {"remote_addr", 2}}},
-	{"bar.example.com", 1, []string{"192.0.2.2"}, time.Date(2019, 6, 15, 22, 18, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+	{"bar.example.com", 1, false, []string{"192.0.2.2"}, time.Date(2019, 6, 15, 22, 18, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
 		[]rowCount{{"rr_question", 2}, {"rr_answer", 2}, {"log", 4}, {"rr_type", 1}, {"remote_addr", 3}}},
-	{"bar.example.com", 28, []string{"2001:db8::1"}, time.Date(2019, 6, 15, 23, 4, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+	{"bar.example.com", 28, false, []string{"2001:db8::1"}, time.Date(2019, 6, 15, 23, 4, 40, 0, time.UTC), net.IPv4(192, 0, 2, 102),
 		[]rowCount{{"rr_question", 2}, {"rr_answer", 3}, {"log", 5}, {"rr_type", 2}, {"remote_addr", 3}}},
-	{"bar.example.com", 28, []string{"2001:db8::2", "2001:db8::3"}, time.Date(2019, 6, 15, 23, 35, 0, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+	{"bar.example.com", 28, false, []string{"2001:db8::2", "2001:db8::3"}, time.Date(2019, 6, 15, 23, 35, 0, 0, time.UTC), net.IPv4(192, 0, 2, 102),
 		[]rowCount{{"rr_question", 2}, {"rr_answer", 5}, {"log", 6}, {"rr_type", 2}, {"remote_addr", 3}}},
-	{"baz.example.com", 28, []string{"2001:db8::4"}, time.Date(2019, 6, 15, 23, 35, 0, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+	{"baz.example.com", 28, false, []string{"2001:db8::4"}, time.Date(2019, 6, 15, 23, 35, 0, 0, time.UTC), net.IPv4(192, 0, 2, 102),
 		[]rowCount{{"rr_question", 3}, {"rr_answer", 6}, {"log", 7}, {"rr_type", 2}, {"remote_addr", 3}}},
 }
 
@@ -56,8 +57,8 @@ func count(t *testing.T, client *Client, query string, args ...interface{}) int 
 func TestWriteLog(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answers...); err != nil {
-			t.Errorf("#%d: WriteLog(%q, %s, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.qtype, tt.question, tt.answers, err)
+		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.hijacked, tt.qtype, tt.question, tt.answers...); err != nil {
+			t.Errorf("#%d: WriteLog(%q, %s, %t, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.hijacked, tt.qtype, tt.question, tt.answers, err)
 		}
 		for _, rowCount := range tt.rowCounts {
 			rows := count(t, c, "SELECT COUNT(*) FROM "+rowCount.table+" LIMIT 1")
@@ -71,8 +72,8 @@ func TestWriteLog(t *testing.T) {
 func TestReadLog(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answers...); err != nil {
-			t.Fatalf("#%d: WriteLog(%q, %s, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.qtype, tt.question, tt.answers, err)
+		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.hijacked, tt.qtype, tt.question, tt.answers...); err != nil {
+			t.Fatalf("#%d: WriteLog(%q, %s, %t, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.hijacked, tt.qtype, tt.question, tt.answers, err)
 		}
 	}
 	allEntries := [][]LogEntry{
@@ -84,7 +85,7 @@ func TestReadLog(t *testing.T) {
 		{{ID: 5, Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::1", Time: 1560639880, RemoteAddr: net.IPv4(192, 0, 2, 102)}},
 		{{ID: 4, Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637120, RemoteAddr: net.IPv4(192, 0, 2, 102)}},
 		{{ID: 3, Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637050, RemoteAddr: net.IPv4(192, 0, 2, 101)}},
-		{{ID: 2, Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636980, RemoteAddr: net.IPv4(192, 0, 2, 100)}},
+		{{ID: 2, Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636980, RemoteAddr: net.IPv4(192, 0, 2, 100), Hijacked: true}},
 		{{ID: 1, Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636910, RemoteAddr: net.IPv4(192, 0, 2, 100)}},
 	}
 	for n := 1; n <= len(allEntries); n++ {
@@ -105,8 +106,8 @@ func TestReadLog(t *testing.T) {
 func TestDeleteLogBefore(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.qtype, tt.question, tt.answers...); err != nil {
-			t.Fatalf("#%d: WriteLog(%s, %s, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.question, tt.answers, err)
+		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.hijacked, tt.qtype, tt.question, tt.answers...); err != nil {
+			t.Fatalf("#%d: WriteLog(%s, %s, %t, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.hijacked, tt.question, tt.answers, err)
 		}
 	}
 	u := tests[1].t.Add(time.Second)
@@ -148,7 +149,7 @@ func TestInterleavedRW(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for range ch {
-			err = c.WriteLog(time.Now(), net.IPv4(127, 0, 0, 1), 1, "example.com.", "192.0.2.1")
+			err = c.WriteLog(time.Now(), net.IPv4(127, 0, 0, 1), false, 1, "example.com.", "192.0.2.1")
 		}
 	}()
 	ch <- true

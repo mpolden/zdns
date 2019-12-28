@@ -25,6 +25,7 @@ type entry struct {
 	Time       string   `json:"time"`
 	TTL        int64    `json:"ttl,omitempty"`
 	RemoteAddr net.IP   `json:"remote_addr,omitempty"`
+	Hijacked   *bool    `json:"hijacked,omitempty"`
 	Qtype      string   `json:"type"`
 	Question   string   `json:"question"`
 	Answers    []string `json:"answers,omitempty"`
@@ -130,9 +131,11 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 	}
 	entries := make([]entry, 0, len(logEntries))
 	for _, le := range logEntries {
+		hijacked := le.Hijacked
 		entries = append(entries, entry{
 			Time:       le.Time.UTC().Format(time.RFC3339),
 			RemoteAddr: le.RemoteAddr,
+			Hijacked:   &hijacked,
 			Qtype:      dns.TypeToString[le.Qtype],
 			Question:   le.Question,
 			Answers:    le.Answers,

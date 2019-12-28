@@ -31,6 +31,7 @@ type RecordOptions struct {
 type Entry struct {
 	Time       time.Time
 	RemoteAddr net.IP
+	Hijacked   bool
 	Qtype      uint16
 	Question   string
 	Answers    []string
@@ -89,13 +90,14 @@ func (l *Logger) Close() error {
 }
 
 // Record records the given DNS request to the log database.
-func (l *Logger) Record(remoteAddr net.IP, qtype uint16, question string, answers ...string) {
+func (l *Logger) Record(remoteAddr net.IP, hijacked bool, qtype uint16, question string, answers ...string) {
 	if l.db == nil {
 		return
 	}
 	l.queue <- Entry{
 		Time:       l.now(),
 		RemoteAddr: remoteAddr,
+		Hijacked:   hijacked,
 		Qtype:      qtype,
 		Question:   question,
 		Answers:    answers,
@@ -116,6 +118,7 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 			newEntry := Entry{
 				Time:       time.Unix(le.Time, 0).UTC(),
 				RemoteAddr: le.RemoteAddr,
+				Hijacked:   le.Hijacked,
 				Qtype:      le.Qtype,
 				Question:   le.Question,
 			}
@@ -130,9 +133,9 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 
 func (l *Logger) readQueue() {
 	defer l.wg.Done()
-	for entry := range l.queue {
-		if err := l.db.WriteLog(entry.Time, entry.RemoteAddr, entry.Qtype, entry.Question, entry.Answers...); err != nil {
-			l.Printf("write failed: %+v: %s", entry, err)
+	for e := range l.queue {
+		if err := l.db.WriteLog(e.Time, e.RemoteAddr, e.Hijacked, e.Qtype, e.Question, e.Answers...); err != nil {
+			l.Printf("write failed: %+v: %s", e, err)
 		}
 	}
 }

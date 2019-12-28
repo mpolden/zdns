@@ -13,7 +13,7 @@ const schema = `
 CREATE TABLE IF NOT EXISTS rr_question (
   id                INTEGER           PRIMARY KEY,
   name              TEXT              NOT NULL,
-  CONSTRAINT        name_unique       UNIQUE (name)
+  CONSTRAINT        name_unique       UNIQUE(name)
 );
 
 CREATE TABLE IF NOT EXISTS rr_answer (
@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS remote_addr (
 CREATE TABLE IF NOT EXISTS log (
   id                INTEGER           PRIMARY KEY,
   time              INTEGER           NOT NULL,
+  hijacked          INTEGER           NOT NULL,
   remote_addr_id    INTEGER           NOT NULL,
   rr_type_id        INTEGER           NOT NULL,
   rr_question_id    INTEGER           NOT NULL,
@@ -65,6 +66,7 @@ type LogEntry struct {
 	ID         int64  `db:"id"`
 	Time       int64  `db:"time"`
 	RemoteAddr []byte `db:"remote_addr"`
+	Hijacked   bool   `db:"hijacked"`
 	Qtype      uint16 `db:"type"`
 	Question   string `db:"question"`
 	Answer     string `db:"answer"`
@@ -94,6 +96,7 @@ func (c *Client) ReadLog(n int) ([]LogEntry, error) {
 SELECT log.id AS id,
        time,
        remote_addr.addr AS remote_addr,
+       hijacked,
        type,
        rr_question.name AS question,
        rr_answer.name AS answer
@@ -125,7 +128,7 @@ func getOrInsert(tx *sqlx.Tx, table, column string, value interface{}) (int64, e
 }
 
 // WriteLog writes a new entry to the log.
-func (c *Client) WriteLog(time time.Time, remoteAddr []byte, qtype uint16, question string, answers ...string) error {
+func (c *Client) WriteLog(time time.Time, remoteAddr []byte, hijacked bool, qtype uint16, question string, answers ...string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	tx, err := c.db.Beginx()
@@ -153,7 +156,11 @@ func (c *Client) WriteLog(time time.Time, remoteAddr []byte, qtype uint16, quest
 		}
 		answerIDs = append(answerIDs, answerID)
 	}
-	res, err := tx.Exec("INSERT INTO log (time, remote_addr_id, rr_type_id, rr_question_id) VALUES ($1, $2, $3, $4)", time.Unix(), remoteAddrID, typeID, questionID)
+	hijackedInt := 0
+	if hijacked {
+		hijackedInt = 1
+	}
+	res, err := tx.Exec("INSERT INTO log (time, hijacked, remote_addr_id, rr_type_id, rr_question_id) VALUES ($1, $2, $3, $4, $5)", time.Unix(), hijackedInt, remoteAddrID, typeID, questionID)
 	if err != nil {
 		return err
 	}

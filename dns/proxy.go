@@ -68,7 +68,7 @@ type client interface {
 
 type logger interface {
 	Printf(string, ...interface{})
-	Record(net.IP, uint16, string, ...string)
+	Record(net.IP, bool, uint16, string, ...string)
 	Close() error
 }
 
@@ -177,7 +177,7 @@ func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 		} else {
 			answers := answers(msg)
 			remoteAddr := net.ParseIP(ip)
-			p.logger.Record(remoteAddr, msg.Question[0].Qtype, msg.Question[0].Name, answers...)
+			p.logger.Record(remoteAddr, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, answers...)
 		}
 	}
 	w.WriteMsg(msg)

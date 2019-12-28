@@ -13,7 +13,7 @@ func TestRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1", "192.0.2.2")
+	logger.Record(net.IPv4(192, 0, 2, 100), false, 1, "example.com.", "192.0.2.1", "192.0.2.2")
 	// Flush queue
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)
@@ -34,7 +34,7 @@ func TestAnswerMerging(t *testing.T) {
 	}
 	now := time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)
 	logger.now = func() time.Time { return now }
-	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1", "192.0.2.2")
+	logger.Record(net.IPv4(192, 0, 2, 100), true, 1, "example.com.", "192.0.2.1", "192.0.2.2")
 	// Flush queue
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)
@@ -47,6 +47,7 @@ func TestAnswerMerging(t *testing.T) {
 	want := []Entry{{
 		Time:       now,
 		RemoteAddr: net.IPv4(192, 0, 2, 100),
+		Hijacked:   true,
 		Qtype:      1,
 		Question:   "example.com.",
 		Answers:    []string{"192.0.2.2", "192.0.2.1"},
@@ -68,7 +69,7 @@ func TestLogPruning(t *testing.T) {
 	defer logger.Close()
 	tt := time.Now()
 	logger.now = func() time.Time { return tt }
-	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1")
+	logger.Record(net.IPv4(192, 0, 2, 100), false, 1, "example.com.", "192.0.2.1")
 
 	// Wait until queue is flushed
 	ts := time.Now()
