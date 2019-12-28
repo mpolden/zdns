@@ -13,18 +13,18 @@ import (
 // Logger wraps a standard log.Logger and an optional log database.
 type Logger struct {
 	*log.Logger
-	now        func() time.Time
-	queue      chan Entry
-	db         *sql.Client
-	maintainer *maintainer
-	wg         sync.WaitGroup
+	queue    chan Entry
+	db       *sql.Client
+	wg       sync.WaitGroup
+	done     chan bool
+	interval time.Duration
+	now      func() time.Time
 }
 
 // RecordOptions configures recording of DNS requests.
 type RecordOptions struct {
-	Database       string
-	ExpiryInterval time.Duration
-	TTL            time.Duration
+	Database string
+	TTL      time.Duration
 }
 
 // Entry represents a DNS request log entry.
@@ -36,18 +36,13 @@ type Entry struct {
 	Answers    []string
 }
 
-type maintainer struct {
-	interval time.Duration
-	ttl      time.Duration
-	done     chan bool
-}
-
 // New creates a new logger wrapping a standard log.Logger.
 func New(w io.Writer, prefix string, options RecordOptions) (*Logger, error) {
 	logger := &Logger{
-		Logger: log.New(w, prefix, 0),
-		queue:  make(chan Entry, 100),
-		now:    time.Now,
+		Logger:   log.New(w, prefix, 0),
+		queue:    make(chan Entry, 100),
+		now:      time.Now,
+		interval: time.Minute,
 	}
 	var err error
 	if options.Database != "" {
@@ -59,38 +54,26 @@ func New(w io.Writer, prefix string, options RecordOptions) (*Logger, error) {
 	logger.wg.Add(1)
 	go logger.readQueue()
 	if options.TTL > 0 {
-		if options.ExpiryInterval <= 0 {
-			options.ExpiryInterval = time.Minute
-		}
-		maintain(logger, options.ExpiryInterval, options.TTL)
+		logger.wg.Add(1)
+		logger.done = make(chan bool)
+		go maintain(logger, options.TTL)
 	}
 	return logger, nil
 }
 
-func maintain(logger *Logger, interval, ttl time.Duration) {
-	m := &maintainer{
-		interval: interval,
-		ttl:      ttl,
-		done:     make(chan bool),
-	}
-	logger.maintainer = m
-	logger.wg.Add(1)
-	go m.run(logger)
-}
-
-func (m *maintainer) run(logger *Logger) {
-	ticker := time.NewTicker(m.interval)
+func maintain(logger *Logger, ttl time.Duration) {
 	defer logger.wg.Done()
+	ticker := time.NewTicker(logger.interval)
 	for {
 		select {
+		case <-logger.done:
+			ticker.Stop()
+			return
 		case <-ticker.C:
-			t := logger.now().Add(-m.ttl)
+			t := logger.now().Add(-ttl)
 			if err := logger.db.DeleteLogBefore(t); err != nil {
 				logger.Printf("error deleting log entries before %v: %s", t, err)
 			}
-		case <-m.done:
-			ticker.Stop()
-			return
 		}
 	}
 }
@@ -98,8 +81,8 @@ func (m *maintainer) run(logger *Logger) {
 // Close consumes any outstanding log requests and closes the logger.
 func (l *Logger) Close() error {
 	close(l.queue)
-	if l.maintainer != nil {
-		l.maintainer.done <- true
+	if l.done != nil {
+		l.done <- true
 	}
 	l.wg.Wait()
 	return nil

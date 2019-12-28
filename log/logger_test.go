@@ -58,13 +58,14 @@ func TestAnswerMerging(t *testing.T) {
 
 func TestLogPruning(t *testing.T) {
 	logger, err := New(os.Stderr, "test: ", RecordOptions{
-		Database:       ":memory:",
-		ExpiryInterval: 10 * time.Millisecond,
-		TTL:            time.Hour,
+		Database: ":memory:",
+		TTL:      time.Hour,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	logger.interval = 10 * time.Millisecond
+	defer logger.Close()
 	tt := time.Now()
 	logger.now = func() time.Time { return tt }
 	logger.Record(net.IPv4(192, 0, 2, 100), 1, "example.com.", "192.0.2.1")
