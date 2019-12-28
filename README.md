@@ -18,8 +18,8 @@ configure.
 * **Secure**: Protect your DNS requests from snooping and tampering using [DNS
   over TLS](https://en.wikipedia.org/wiki/DNS_over_TLS) or [DNS over
   HTTPS](https://en.wikipedia.org/wiki/DNS_over_HTTPS) for upstream resolvers.
-* **Self-contained**: Zero run-time dependencies make it easy to deploy and
-  maintain _zdns_.
+* **Self-contained**: Zero run-time dependencies makes _zdns_ easy to deploy and
+  maintain.
 * **Observable**: _zdns_ supports DNS logging which makes it easy to observe what's
   going on your network.
 * **Portable**: Run it on your VPS, container, laptop, Raspberry Pi or home
@@ -27,7 +27,7 @@ configure.
 
 ## Installation
 
-_zdns_ is a standard Go package which can be installed as follows:
+_zdns_ is a standard Go package which can be installed with `go get`.
 
 ``` shell
 $ go get github.com/mpolden/zdns/...
@@ -73,6 +73,7 @@ $ curl -s 'http://127.0.0.1:8053/log/v1/?n=1' | jq .
   {
     "time": "2019-12-27T10:43:23Z",
     "remote_addr": "127.0.0.1",
+    "hijacked": false,
     "type": "AAAA",
     "question": "discovery.syncthing.net.",
     "answers": [
