@@ -13,12 +13,11 @@ import (
 // Logger wraps a standard log.Logger and an optional log database.
 type Logger struct {
 	*log.Logger
-	queue    chan Entry
-	db       *sql.Client
-	wg       sync.WaitGroup
-	done     chan bool
-	interval time.Duration
-	now      func() time.Time
+	queue chan Entry
+	db    *sql.Client
+	wg    sync.WaitGroup
+	done  chan bool
+	now   func() time.Time
 }
 
 // RecordOptions configures recording of DNS requests.
@@ -37,13 +36,17 @@ type Entry struct {
 	Answers    []string
 }
 
-// New creates a new logger wrapping a standard log.Logger.
+// New creates a new logger, writing log output to writer w prefixed with prefix. Persisted logging behaviour is
+// controller by options.
 func New(w io.Writer, prefix string, options RecordOptions) (*Logger, error) {
+	return newLogger(w, prefix, options, time.Minute)
+}
+
+func newLogger(w io.Writer, prefix string, options RecordOptions, interval time.Duration) (*Logger, error) {
 	logger := &Logger{
-		Logger:   log.New(w, prefix, 0),
-		queue:    make(chan Entry, 100),
-		now:      time.Now,
-		interval: time.Minute,
+		Logger: log.New(w, prefix, 0),
+		queue:  make(chan Entry, 100),
+		now:    time.Now,
 	}
 	var err error
 	if options.Database != "" {
@@ -57,14 +60,14 @@ func New(w io.Writer, prefix string, options RecordOptions) (*Logger, error) {
 	if options.TTL > 0 {
 		logger.wg.Add(1)
 		logger.done = make(chan bool)
-		go maintain(logger, options.TTL)
+		go maintain(logger, options.TTL, interval)
 	}
 	return logger, nil
 }
 
-func maintain(logger *Logger, ttl time.Duration) {
+func maintain(logger *Logger, ttl, interval time.Duration) {
 	defer logger.wg.Done()
-	ticker := time.NewTicker(logger.interval)
+	ticker := time.NewTicker(interval)
 	for {
 		select {
 		case <-logger.done:

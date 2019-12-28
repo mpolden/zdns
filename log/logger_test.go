@@ -58,14 +58,13 @@ func TestAnswerMerging(t *testing.T) {
 }
 
 func TestLogPruning(t *testing.T) {
-	logger, err := New(os.Stderr, "test: ", RecordOptions{
+	logger, err := newLogger(os.Stderr, "test: ", RecordOptions{
 		Database: ":memory:",
 		TTL:      time.Hour,
-	})
+	}, 10*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
-	logger.interval = 10 * time.Millisecond
 	defer logger.Close()
 	tt := time.Now()
 	logger.now = func() time.Time { return tt }
