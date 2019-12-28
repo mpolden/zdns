@@ -51,9 +51,9 @@ func NewServer(logger *log.Logger, cache *cache.Cache, addr string) *Server {
 
 func (s *Server) handler() http.Handler {
 	r := newRouter()
-	r.route("GET", "/cache/v1/", s.cacheHandler)
-	r.route("GET", "/log/v1/", s.logHandler)
-	r.route("DELETE", "/cache/v1/", s.cacheResetHandler)
+	r.route(http.MethodGet, "/cache/v1/", s.cacheHandler)
+	r.route(http.MethodGet, "/log/v1/", s.logHandler)
+	r.route(http.MethodDelete, "/cache/v1/", s.cacheResetHandler)
 	return r.handler()
 }
 
