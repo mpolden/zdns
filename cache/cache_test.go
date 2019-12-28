@@ -218,6 +218,18 @@ func TestCacheList(t *testing.T) {
 	}
 }
 
+func TestReset(t *testing.T) {
+	c := New(10)
+	c.Set(uint64(1), &dns.Msg{})
+	c.Reset()
+	if got, want := len(c.values), 0; got != want {
+		t.Errorf("len(values) = %d, want %d", got, want)
+	}
+	if got, want := len(c.keys), 0; got != want {
+		t.Errorf("len(keys) = %d, want %d", got, want)
+	}
+}
+
 func BenchmarkNewKey(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		NewKey("key", 1, 1)

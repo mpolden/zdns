@@ -124,6 +124,7 @@ func (c *Cache) getValue(k uint64) (*Value, bool) {
 func (c *Cache) List(n int) []Value {
 	values := make([]Value, 0, n)
 	c.mu.RLock()
+	defer c.mu.RUnlock()
 	for i := len(c.keys) - 1; i >= 0; i-- {
 		if len(values) == n {
 			break
@@ -134,7 +135,6 @@ func (c *Cache) List(n int) []Value {
 		}
 		values = append(values, *v)
 	}
-	c.mu.RUnlock()
 	return values
 }
 
@@ -149,17 +149,26 @@ func (c *Cache) Set(k uint64, msg *dns.Msg) {
 	}
 	now := c.now()
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	if len(c.values) == c.capacity && c.capacity > 0 {
 		delete(c.values, c.keys[0])
 		c.keys = c.keys[1:]
 	}
 	c.values[k] = &Value{CreatedAt: now, msg: msg}
 	c.keys = append(c.keys, k)
-	c.mu.Unlock()
+}
+
+// Reset removes all values contained in cache c.
+func (c *Cache) Reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.values = make(map[uint64]*Value)
+	c.keys = nil
 }
 
 func (c *Cache) evictExpired() {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	evictedKeys := make(map[uint64]bool)
 	for k, v := range c.values {
 		if c.isExpired(v) {
@@ -178,7 +187,6 @@ func (c *Cache) evictExpired() {
 		}
 		c.keys = keys
 	}
-	c.mu.Unlock()
 }
 
 func (c *Cache) isExpired(v *Value) bool {
