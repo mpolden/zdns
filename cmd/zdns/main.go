@@ -86,9 +86,11 @@ func (c *cli) run() {
 
 	// Signal handling
 	sigHandler := signal.NewHandler(c.signal, logger)
+	sigHandler.OnClose(logger)
 
 	// Cache
 	cache := cache.New(config.DNS.CacheSize)
+	sigHandler.OnClose(cache)
 
 	// DNS server
 	proxy, err := dns.NewProxy(cache, logger, dns.ProxyOptions{
@@ -98,6 +100,7 @@ func (c *cli) run() {
 		Timeout:   config.Resolver.Timeout,
 	})
 	fatal(err)
+	sigHandler.OnClose(proxy)
 
 	dnsSrv, err := zdns.NewServer(logger, proxy, config)
 	fatal(err)

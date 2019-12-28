@@ -171,10 +171,7 @@ func (s *Server) Close() error {
 	if s.ticker != nil {
 		s.done <- true
 	}
-	if s.proxy != nil {
-		return s.proxy.Close()
-	}
-	return s.logger.Close()
+	return nil
 }
 
 func (s *Server) hijack(r *dns.Request) *dns.Reply {

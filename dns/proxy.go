@@ -145,11 +145,9 @@ func (p *Proxy) reply(r *dns.Msg) *dns.Msg {
 // Close closes the proxy.
 func (p *Proxy) Close() error {
 	if p.server != nil {
-		if err := p.server.Shutdown(); err != nil {
-			return err
-		}
+		return p.server.Shutdown()
 	}
-	return p.cache.Close()
+	return nil
 }
 
 func answers(msg *dns.Msg) []string {

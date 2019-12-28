@@ -144,6 +144,7 @@ func TestProxy(t *testing.T) {
 	}
 	p := testProxy(t)
 	p.Handler = h
+	defer p.Close()
 
 	m := dns.Msg{}
 	m.Id = dns.Id()
@@ -161,6 +162,7 @@ func TestProxyWithResolvers(t *testing.T) {
 	p.resolvers = []string{"resolver1"}
 	client := make(testClient)
 	p.client = client
+	defer p.Close()
 
 	// First and only resolver responds succesfully
 	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
@@ -196,6 +198,7 @@ func TestProxyWithCache(t *testing.T) {
 	p.resolvers = []string{"resolver1"}
 	client := make(testClient)
 	p.client = client
+	defer p.Close()
 
 	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
 	m := dns.Msg{}
@@ -218,6 +221,7 @@ func TestProxyWithLogging(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer p.Close()
 	badHost := "badhost1."
 	goodHost := "goodhost1."
 	p.resolvers = []string{"resolver1"}
