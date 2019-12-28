@@ -121,8 +121,8 @@ func (c *Cache) getValue(k uint64) (*Value, bool) {
 }
 
 // List returns the n most recent values in cache c.
-func (c *Cache) List(n int) []*Value {
-	values := make([]*Value, 0, n)
+func (c *Cache) List(n int) []Value {
+	values := make([]Value, 0, n)
 	c.mu.RLock()
 	for i := len(c.keys) - 1; i >= 0; i-- {
 		if len(values) == n {
@@ -132,7 +132,7 @@ func (c *Cache) List(n int) []*Value {
 		if !ok {
 			continue
 		}
-		values = append(values, v)
+		values = append(values, *v)
 	}
 	c.mu.RUnlock()
 	return values
