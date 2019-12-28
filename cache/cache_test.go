@@ -211,3 +211,12 @@ func BenchmarkCache(b *testing.B) {
 		c.Get(uint64(n))
 	}
 }
+
+func BenchmarkCacheEviction(b *testing.B) {
+	c := New(1, time.Second)
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		c.Set(uint64(n), &dns.Msg{})
+		c.Get(uint64(n))
+	}
+}

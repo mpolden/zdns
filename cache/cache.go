@@ -11,42 +11,12 @@ import (
 
 // Cache represents a cache of DNS responses. Use New to initialize a new cache.
 type Cache struct {
-	capacity   int
-	now        func() time.Time
-	maintainer *maintainer
-	mu         sync.RWMutex
-	wg         sync.WaitGroup
-	values     map[uint64]*Value
-	keys       []uint64
-}
-
-type maintainer struct {
-	interval time.Duration
+	capacity int
+	values   map[uint64]*Value
+	keys     []uint64
+	mu       sync.RWMutex
 	done     chan bool
-}
-
-func maintain(cache *Cache, interval time.Duration) {
-	m := &maintainer{
-		interval: interval,
-		done:     make(chan bool),
-	}
-	cache.maintainer = m
-	cache.wg.Add(1)
-	go m.run(cache)
-}
-
-func (m *maintainer) run(cache *Cache) {
-	defer cache.wg.Done()
-	ticker := time.NewTicker(m.interval)
-	for {
-		select {
-		case <-ticker.C:
-			cache.deleteExpired()
-		case <-m.done:
-			ticker.Stop()
-			return
-		}
-	}
+	now      func() time.Time
 }
 
 // Value represents a value stored in the cache.
@@ -97,8 +67,9 @@ func New(capacity int, expiryInterval time.Duration) *Cache {
 		now:      time.Now,
 		capacity: capacity,
 		values:   make(map[uint64]*Value, capacity),
+		done:     make(chan bool),
 	}
-	maintain(cache, expiryInterval)
+	go maintain(cache, expiryInterval)
 	return cache
 }
 
@@ -111,10 +82,22 @@ func NewKey(name string, qtype, qclass uint16) uint64 {
 	return h.Sum64()
 }
 
+func maintain(cache *Cache, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	for {
+		select {
+		case <-cache.done:
+			ticker.Stop()
+			return
+		case <-ticker.C:
+			cache.deleteExpired()
+		}
+	}
+}
+
 // Close closes the cache.
 func (c *Cache) Close() error {
-	c.maintainer.done <- true
-	c.wg.Wait()
+	c.done <- true
 	return nil
 }
 
