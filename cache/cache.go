@@ -144,7 +144,7 @@ func (c *Cache) Set(k uint64, msg *dns.Msg) {
 	if c.capacity == 0 {
 		return
 	}
-	if !isCacheable(msg) {
+	if !canCache(msg) {
 		return
 	}
 	now := c.now()
@@ -158,12 +158,25 @@ func (c *Cache) Set(k uint64, msg *dns.Msg) {
 	c.mu.Unlock()
 }
 
-func (c *Cache) deleteExpired() {
+func (c *Cache) evictExpired() {
 	c.mu.Lock()
+	evictedKeys := make(map[uint64]bool)
 	for k, v := range c.values {
 		if c.isExpired(v) {
 			delete(c.values, k)
+			evictedKeys[k] = true
 		}
+	}
+	if len(evictedKeys) > 0 {
+		// At least one entry was evicted. The ordered list of keys must be updated.
+		var keys []uint64
+		for _, k := range c.keys {
+			if _, ok := evictedKeys[k]; ok {
+				continue
+			}
+			keys = append(keys, k)
+		}
+		c.keys = keys
 	}
 	c.mu.Unlock()
 }
@@ -196,7 +209,7 @@ func minTTL(m *dns.Msg) time.Duration {
 	return time.Duration(ttl) * time.Second
 }
 
-func isCacheable(m *dns.Msg) bool {
+func canCache(m *dns.Msg) bool {
 	if minTTL(m) == 0 {
 		return false
 	}

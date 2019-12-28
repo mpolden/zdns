@@ -95,7 +95,7 @@ func TestCache(t *testing.T) {
 	}{
 		{msg, createdAt, createdAt, true, &Value{CreatedAt: createdAt, msg: msg}},                       // Not expired when query time == create time
 		{msg, createdAt, createdAt.Add(30 * time.Second), true, &Value{CreatedAt: createdAt, msg: msg}}, // Not expired when below TTL
-		{msg, createdAt, createdAt.Add(60 * time.Second), true, &Value{CreatedAt: createdAt, msg: msg}}, //,  Not expired until TTL exceeds
+		{msg, createdAt, createdAt.Add(60 * time.Second), true, &Value{CreatedAt: createdAt, msg: msg}}, // Not expired until TTL exceeds
 		{msg, createdAt, createdAt.Add(61 * time.Second), false, nil},                                   // Expired
 		{msgWithZeroTTL, createdAt, createdAt, false, nil},                                              // 0 TTL is not cached
 		{msgFailure, createdAt, createdAt, false, nil},                                                  // Non-cacheable rcode
@@ -115,7 +115,17 @@ func TestCache(t *testing.T) {
 			awaitExpiry(t, c, k)
 		}
 		if _, ok := c.values[k]; ok != tt.ok {
-			t.Errorf("#%d: Cache[%d] = %t, want %t", i, k, ok, tt.ok)
+			t.Errorf("#%d: values[%d] = %t, want %t", i, k, ok, tt.ok)
+		}
+		keyIdx := -1
+		for i, key := range c.keys {
+			if key == k {
+				keyIdx = i
+				break
+			}
+		}
+		if (keyIdx != -1) != tt.ok {
+			t.Errorf("#%d: keys[%d] = %d, should not exist", i, keyIdx, k)
 		}
 	}
 }
