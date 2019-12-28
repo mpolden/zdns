@@ -17,7 +17,6 @@ type Cache struct {
 	mu       sync.RWMutex
 	done     chan bool
 	now      func() time.Time
-	interval time.Duration
 }
 
 // Value wraps a DNS message stored in the cache.
@@ -53,22 +52,23 @@ func (v *Value) Answers() []string {
 	return answers
 }
 
-// TTL returns the TTL of the cached value v.
+// TTL returns the time to live of the cached value v.
 func (v *Value) TTL() time.Duration { return minTTL(v.msg) }
 
 // New creates a new cache of given capacity.
-func New(capacity int) *Cache {
+func New(capacity int) *Cache { return newCache(capacity, time.Minute, time.Now) }
+
+func newCache(capacity int, interval time.Duration, now func() time.Time) *Cache {
 	if capacity < 0 {
 		capacity = 0
 	}
 	cache := &Cache{
-		now:      time.Now,
+		now:      now,
 		capacity: capacity,
 		values:   make(map[uint64]*Value, capacity),
 		done:     make(chan bool),
-		interval: time.Minute,
 	}
-	go maintain(cache)
+	go maintain(cache, interval)
 	return cache
 }
 
@@ -81,8 +81,8 @@ func NewKey(name string, qtype, qclass uint16) uint64 {
 	return h.Sum64()
 }
 
-func maintain(cache *Cache) {
-	ticker := time.NewTicker(cache.interval)
+func maintain(cache *Cache, interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	for {
 		select {
 		case <-cache.done:
@@ -195,11 +195,19 @@ func min(x, y uint32) uint32 {
 
 func minTTL(m *dns.Msg) time.Duration {
 	var ttl uint32 = 1<<32 - 1 //  avoid importing math
+	// Choose the lowest TTL of answer, authority and additional sections.
 	for _, answer := range m.Answer {
 		ttl = min(answer.Header().Ttl, ttl)
 	}
 	for _, ns := range m.Ns {
 		ttl = min(ns.Header().Ttl, ttl)
+	}
+	for _, extra := range m.Extra {
+		// OPT (EDNS) is a pseudo record which uses TTL field for extended RCODE and flags
+		if extra.Header().Rrtype == dns.TypeOPT {
+			continue
+		}
+		ttl = min(extra.Header().Ttl, ttl)
 	}
 	return time.Duration(ttl) * time.Second
 }
