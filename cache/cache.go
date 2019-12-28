@@ -182,13 +182,8 @@ func (c *Cache) evictExpired() {
 }
 
 func (c *Cache) isExpired(v *Value) bool {
-	now := c.now()
-	for _, answer := range v.msg.Answer {
-		if now.After(v.CreatedAt.Add(ttl(answer))) {
-			return true
-		}
-	}
-	return false
+	expiresAt := v.CreatedAt.Add(minTTL(v.msg))
+	return c.now().After(expiresAt)
 }
 
 func min(x, y uint32) uint32 {
@@ -214,9 +209,4 @@ func canCache(m *dns.Msg) bool {
 		return false
 	}
 	return m.Rcode == dns.RcodeSuccess || m.Rcode == dns.RcodeNameError
-}
-
-func ttl(rr dns.RR) time.Duration {
-	ttlSecs := rr.Header().Ttl
-	return time.Duration(ttlSecs) * time.Second
 }
