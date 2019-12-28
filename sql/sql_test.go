@@ -1,8 +1,10 @@
 package sql
 
 import (
+	"fmt"
 	"net"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -36,6 +38,8 @@ var tests = []struct {
 		[]rowCount{{"rr_question", 2}, {"rr_answer", 5}, {"log", 6}, {"rr_type", 2}, {"remote_addr", 3}}},
 	{"baz.example.com", 28, false, []string{"2001:db8::4"}, time.Date(2019, 6, 15, 23, 35, 0, 0, time.UTC), net.IPv4(192, 0, 2, 102),
 		[]rowCount{{"rr_question", 3}, {"rr_answer", 6}, {"log", 7}, {"rr_type", 2}, {"remote_addr", 3}}},
+	{"baz.example.com", 28, false, nil, time.Date(2019, 6, 16, 1, 5, 0, 0, time.UTC), net.IPv4(192, 0, 2, 102),
+		[]rowCount{{"rr_question", 3}, {"rr_answer", 6}, {"log", 8}, {"rr_type", 2}, {"remote_addr", 3}}},
 }
 
 func testClient() *Client {
@@ -77,6 +81,7 @@ func TestReadLog(t *testing.T) {
 		}
 	}
 	allEntries := [][]LogEntry{
+		{{ID: 8, Question: "baz.example.com", Qtype: 28, Time: 1560647100, RemoteAddr: net.IPv4(192, 0, 2, 102)}},
 		{{ID: 7, Question: "baz.example.com", Qtype: 28, Answer: "2001:db8::4", Time: 1560641700, RemoteAddr: net.IPv4(192, 0, 2, 102)}},
 		{
 			{ID: 6, Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::3", Time: 1560641700, RemoteAddr: net.IPv4(192, 0, 2, 102)},
@@ -98,7 +103,15 @@ func TestReadLog(t *testing.T) {
 			t.Errorf("len(got) = %d, want %d", len(got), len(want))
 		}
 		if err != nil || !reflect.DeepEqual(got, want) {
-			t.Errorf("ReadLog(%d) = (%+v, %v), want (%+v, %v)", n, got, err, want, nil)
+			var sb1 strings.Builder
+			for _, e := range got {
+				sb1.WriteString(fmt.Sprintf("  %+v\n", e))
+			}
+			var sb2 strings.Builder
+			for _, e := range want {
+				sb2.WriteString(fmt.Sprintf("  %+v\n", e))
+			}
+			t.Errorf("ReadLog(%d) = (\n%s, %v),\nwant (\n%s, %v)", n, sb1.String(), err, sb2.String(), nil)
 		}
 	}
 }
