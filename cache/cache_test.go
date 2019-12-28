@@ -47,12 +47,12 @@ func TestNewKey(t *testing.T) {
 	var tests = []struct {
 		name          string
 		qtype, qclass uint16
-		out           uint32
+		out           uint64
 	}{
-		{"foo.", dns.TypeA, dns.ClassINET, 3170238979},
-		{"foo.", dns.TypeAAAA, dns.ClassINET, 2108186350},
-		{"foo.", dns.TypeA, dns.ClassANY, 2025815293},
-		{"bar.", dns.TypeA, dns.ClassINET, 1620283204},
+		{"foo.", dns.TypeA, dns.ClassINET, 12854986581909659251},
+		{"foo.", dns.TypeAAAA, dns.ClassINET, 12509032947198407788},
+		{"foo.", dns.TypeA, dns.ClassANY, 12855125120374813837},
+		{"bar.", dns.TypeA, dns.ClassINET, 4069151952488606484},
 	}
 	for i, tt := range tests {
 		got := NewKey(tt.name, tt.qtype, tt.qclass)
@@ -62,7 +62,7 @@ func TestNewKey(t *testing.T) {
 	}
 }
 
-func awaitExpiry(t *testing.T, c *Cache, k uint32) {
+func awaitExpiry(t *testing.T, c *Cache, k uint64) {
 	now := time.Now()
 	for {
 		c.mu.RLock()
@@ -199,7 +199,7 @@ func TestCacheList(t *testing.T) {
 
 func BenchmarkNewKey(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_ = NewKey("key", 1, 1)
+		NewKey("key", 1, 1)
 	}
 }
 
@@ -207,7 +207,7 @@ func BenchmarkCache(b *testing.B) {
 	c := New(1000, 10*time.Minute)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		c.Set(uint32(n), &dns.Msg{})
-		_, _ = c.Get(uint32(n))
+		c.Set(uint64(n), &dns.Msg{})
+		c.Get(uint64(n))
 	}
 }

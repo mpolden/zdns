@@ -16,8 +16,8 @@ type Cache struct {
 	maintainer *maintainer
 	mu         sync.RWMutex
 	wg         sync.WaitGroup
-	values     map[uint32]*Value
-	keys       []uint32
+	values     map[uint64]*Value
+	keys       []uint64
 }
 
 type maintainer struct {
@@ -96,19 +96,19 @@ func New(capacity int, expiryInterval time.Duration) *Cache {
 	cache := &Cache{
 		now:      time.Now,
 		capacity: capacity,
-		values:   make(map[uint32]*Value, capacity),
+		values:   make(map[uint64]*Value, capacity),
 	}
 	maintain(cache, expiryInterval)
 	return cache
 }
 
 // NewKey creates a new cache key for the DNS name, qtype and qclass
-func NewKey(name string, qtype, qclass uint16) uint32 {
-	h := fnv.New32a()
+func NewKey(name string, qtype, qclass uint16) uint64 {
+	h := fnv.New64a()
 	h.Write([]byte(name))
-	binary.Write(h, binary.LittleEndian, qtype)
-	binary.Write(h, binary.LittleEndian, qclass)
-	return h.Sum32()
+	binary.Write(h, binary.BigEndian, qtype)
+	binary.Write(h, binary.BigEndian, qclass)
+	return h.Sum64()
 }
 
 // Close closes the cache.
@@ -120,7 +120,7 @@ func (c *Cache) Close() error {
 
 // Get returns the DNS message associated with key k. Get will return nil if any TTL in the answer section of the
 // message is exceeded according to time t.
-func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
+func (c *Cache) Get(k uint64) (*dns.Msg, bool) {
 	v, ok := c.getValue(k)
 	if !ok {
 		return nil, false
@@ -128,7 +128,7 @@ func (c *Cache) Get(k uint32) (*dns.Msg, bool) {
 	return v.msg, true
 }
 
-func (c *Cache) getValue(k uint32) (*Value, bool) {
+func (c *Cache) getValue(k uint64) (*Value, bool) {
 	c.mu.RLock()
 	v, ok := c.values[k]
 	c.mu.RUnlock()
@@ -158,7 +158,7 @@ func (c *Cache) List(n int) []*Value {
 
 // Set associated key k with the DNS message v. Message msg will expire from the cache according to its TTL. Setting a
 // new key in a cache that has reached its capacity will remove the first key.
-func (c *Cache) Set(k uint32, msg *dns.Msg) {
+func (c *Cache) Set(k uint64, msg *dns.Msg) {
 	if c.capacity == 0 {
 		return
 	}
