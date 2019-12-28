@@ -16,11 +16,11 @@ const (
 	TypeA = dns.TypeA
 	// TypeAAAA represents the resource record type AAAA, an IPv6 address.
 	TypeAAAA = dns.TypeAAAA
-	// LogDiscard disables logging of DNS requests
+	// LogDiscard disables logging of DNS requests.
 	LogDiscard = iota
-	// LogAll logs all DNS requests
+	// LogAll logs all DNS requests.
 	LogAll
-	// LogHijacked only logs hijacked DNS requets
+	// LogHijacked only logs hijacked DNS requests.
 	LogHijacked
 )
 

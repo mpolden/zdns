@@ -163,7 +163,7 @@ func (s *Server) loadHosts() {
 	s.logger.Printf("loaded %d hosts in total", len(hs))
 }
 
-// Reload reloads the configuration of this server
+// Reload reloads the configuration of this server.
 func (s *Server) Reload() { s.loadHosts() }
 
 // Close terminates all active operations and shuts down the DNS server.
