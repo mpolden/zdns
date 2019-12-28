@@ -153,6 +153,7 @@ func (p *Proxy) Close() error {
 func answers(msg *dns.Msg) []string {
 	var answers []string
 	for _, answer := range msg.Answer {
+		// Log answers for the following DNS types. Other types are still logged, but their answers are not.
 		switch v := answer.(type) {
 		case *dns.A:
 			answers = append(answers, v.A.String())
@@ -162,6 +163,10 @@ func answers(msg *dns.Msg) []string {
 			answers = append(answers, v.Mx)
 		case *dns.PTR:
 			answers = append(answers, v.Ptr)
+		case *dns.NS:
+			answers = append(answers, v.Ns)
+		case *dns.CNAME:
+			answers = append(answers, v.Target)
 		}
 	}
 	return answers
