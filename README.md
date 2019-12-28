@@ -69,6 +69,7 @@ served by the built-in web server, which can be enabled in `zdnsrc`.
 
 ### Examples
 
+Read the log:
 ```shell
 $ curl -s 'http://127.0.0.1:8053/log/v1/?n=1' | jq .
 [
@@ -86,6 +87,7 @@ $ curl -s 'http://127.0.0.1:8053/log/v1/?n=1' | jq .
 ]
 ```
 
+Read the cache:
 ```shell
 $ curl -s 'http://127.0.0.1:8053/cache/v1/?n=1' | jq .
 [
@@ -107,6 +109,14 @@ $ curl -s 'http://127.0.0.1:8053/cache/v1/?n=1' | jq .
     "rcode": "NOERROR"
   }
 ]
+```
+
+Clear the cache:
+```shell
+$ curl -s -XDELETE 'http://127.0.0.1:8053/cache/v1/' | jq .
+{
+  "message": "Cleared cache"
+}
 ```
 
 ## Port redirection

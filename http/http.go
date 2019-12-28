@@ -53,6 +53,7 @@ func (s *Server) handler() http.Handler {
 	r := newRouter()
 	r.route("GET", "/cache/v1/", s.cacheHandler)
 	r.route("GET", "/log/v1/", s.logHandler)
+	r.route("DELETE", "/cache/v1/", s.cacheResetHandler)
 	return r.handler()
 }
 
@@ -80,6 +81,15 @@ func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) (interface
 		})
 	}
 	return entries, nil
+}
+
+func (s *Server) cacheResetHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
+	s.cache.Reset()
+	return struct {
+		Message string `json:"message"`
+	}{
+		"Cleared cache",
+	}, nil
 }
 
 func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {

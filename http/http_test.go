@@ -52,6 +52,27 @@ func httpGet(url string) (*http.Response, string, error) {
 	return res, string(data), nil
 }
 
+func httpRequest(method, url, body string) (*http.Response, string, error) {
+	r, err := http.NewRequest(method, url, strings.NewReader(body))
+	if err != nil {
+		return nil, "", err
+	}
+	res, err := http.DefaultClient.Do(r)
+	if err != nil {
+		return nil, "", err
+	}
+	defer res.Body.Close()
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	return res, string(data), nil
+}
+
+func httpDelete(url, body string) (*http.Response, string, error) {
+	return httpRequest(http.MethodDelete, url, body)
+}
+
 func TestRequests(t *testing.T) {
 	httpSrv, srv := testServer()
 	defer httpSrv.Close()
@@ -80,28 +101,31 @@ func TestRequests(t *testing.T) {
 		{http.MethodGet, "/cache/v1/", cr1, 200},
 		{http.MethodGet, "/cache/v1/?n=foo", cr1, 200},
 		{http.MethodGet, "/cache/v1/?n=1", cr2, 200},
+		{http.MethodDelete, "/cache/v1/", `{"message":"Cleared cache"}`, 200},
 	}
 
 	for i, tt := range tests {
 		var (
-			resp *http.Response
+			res  *http.Response
 			data string
 			err  error
 		)
 		switch tt.method {
 		case http.MethodGet:
-			resp, data, err = httpGet(httpSrv.URL + tt.url)
+			res, data, err = httpGet(httpSrv.URL + tt.url)
+		case http.MethodDelete:
+			res, data, err = httpDelete(httpSrv.URL+tt.url, "")
 		default:
 			t.Fatalf("#%d: invalid method: %s", i, tt.method)
 		}
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := resp.StatusCode; got != tt.status {
+		if got := res.StatusCode; got != tt.status {
 			t.Errorf("#%d: %s %s returned status %d, want %d", i, tt.method, tt.url, got, tt.status)
 		}
 
-		if got, want := resp.Header.Get("Content-Type"), "application/json"; got != want {
+		if got, want := res.Header.Get("Content-Type"), "application/json"; got != want {
 			t.Errorf("#%d: got Content-Type %q, want %q", i, got, want)
 		}
 
