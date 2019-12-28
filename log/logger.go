@@ -129,7 +129,9 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 			entry = &entries[len(entries)-1]
 			ids[le.ID] = entry
 		}
-		entry.Answers = append(entry.Answers, le.Answer)
+		if le.Answer != "" {
+			entry.Answers = append(entry.Answers, le.Answer)
+		}
 	}
 	return entries, nil
 }

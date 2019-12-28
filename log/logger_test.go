@@ -35,23 +35,32 @@ func TestAnswerMerging(t *testing.T) {
 	now := time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)
 	logger.now = func() time.Time { return now }
 	logger.Record(net.IPv4(192, 0, 2, 100), true, 1, "example.com.", "192.0.2.1", "192.0.2.2")
+	logger.Record(net.IPv4(192, 0, 2, 100), true, 1, "2.example.com.")
 	// Flush queue
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)
 	}
-	// Multi-answer log entry is merged
-	got, err := logger.Get(1)
+	// Multi-answer log entries are merged
+	got, err := logger.Get(2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Entry{{
-		Time:       now,
-		RemoteAddr: net.IPv4(192, 0, 2, 100),
-		Hijacked:   true,
-		Qtype:      1,
-		Question:   "example.com.",
-		Answers:    []string{"192.0.2.2", "192.0.2.1"},
-	}}
+	want := []Entry{
+		{
+			Time:       now,
+			RemoteAddr: net.IPv4(192, 0, 2, 100),
+			Hijacked:   true,
+			Qtype:      1,
+			Question:   "example.com.",
+			Answers:    []string{"192.0.2.2", "192.0.2.1"},
+		},
+		{
+			Time:       now,
+			RemoteAddr: net.IPv4(192, 0, 2, 100),
+			Hijacked:   true,
+			Qtype:      1,
+			Question:   "2.example.com.",
+		}}
 	if !reflect.DeepEqual(want, got) {
 		t.Errorf("Get(1) = %+v, want %+v", got, want)
 	}
