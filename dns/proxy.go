@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -174,14 +175,17 @@ func answers(msg *dns.Msg) []string {
 
 func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 	if p.logMode == LogAll || (hijacked && p.logMode == LogHijacked) {
-		ip, _, err := net.SplitHostPort(w.RemoteAddr().String())
-		if err != nil {
-			p.logger.Printf("failed to parse ip: %s", w.RemoteAddr().String())
-		} else {
-			answers := answers(msg)
-			remoteAddr := net.ParseIP(ip)
-			p.logger.Record(remoteAddr, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, answers...)
+		var ip net.IP
+		switch v := w.RemoteAddr().(type) {
+		case *net.UDPAddr:
+			ip = v.IP
+		case *net.TCPAddr:
+			ip = v.IP
+		default:
+			panic(fmt.Sprintf("unexpected remote address type %T", v))
 		}
+		answers := answers(msg)
+		p.logger.Record(ip, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, answers...)
 	}
 	w.WriteMsg(msg)
 }
