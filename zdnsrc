@@ -13,11 +13,6 @@
 # entries once the number of entries exceeds this size.
 #
 # cache_size = 4096
-#
-# Configures the interval when expired entries should be removed from the cache.
-# TTLs are always respected, regardless of this value.
-#
-# cache_expiry_interval = "1m"
 
 # Upstream DNS servers to use when answering queries.
 #

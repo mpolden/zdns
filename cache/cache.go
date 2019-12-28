@@ -17,6 +17,7 @@ type Cache struct {
 	mu       sync.RWMutex
 	done     chan bool
 	now      func() time.Time
+	interval time.Duration
 }
 
 // Value wraps a DNS message stored in the cache.
@@ -55,21 +56,19 @@ func (v *Value) Answers() []string {
 // TTL returns the TTL of the cached value v.
 func (v *Value) TTL() time.Duration { return minTTL(v.msg) }
 
-// New creates a new cache of given capacity. Stale cache values are removed every expiryInterval.
-func New(capacity int, expiryInterval time.Duration) *Cache {
+// New creates a new cache of given capacity.
+func New(capacity int) *Cache {
 	if capacity < 0 {
 		capacity = 0
-	}
-	if expiryInterval == 0 {
-		expiryInterval = 10 * time.Minute
 	}
 	cache := &Cache{
 		now:      time.Now,
 		capacity: capacity,
 		values:   make(map[uint64]*Value, capacity),
 		done:     make(chan bool),
+		interval: time.Minute,
 	}
-	go maintain(cache, expiryInterval)
+	go maintain(cache)
 	return cache
 }
 
@@ -82,15 +81,15 @@ func NewKey(name string, qtype, qclass uint16) uint64 {
 	return h.Sum64()
 }
 
-func maintain(cache *Cache, interval time.Duration) {
-	ticker := time.NewTicker(interval)
+func maintain(cache *Cache) {
+	ticker := time.NewTicker(cache.interval)
 	for {
 		select {
 		case <-cache.done:
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			cache.deleteExpired()
+			cache.evictExpired()
 		}
 	}
 }

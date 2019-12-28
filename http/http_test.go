@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
@@ -35,7 +34,7 @@ func testServer() (*httptest.Server, *Server) {
 	if err != nil {
 		panic(err)
 	}
-	cache := cache.New(10, time.Minute)
+	cache := cache.New(10)
 	server := Server{logger: logger, cache: cache}
 	return httptest.NewServer(server.handler()), &server
 }

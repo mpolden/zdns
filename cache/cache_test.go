@@ -84,7 +84,8 @@ func TestCache(t *testing.T) {
 	msgFailure.Rcode = dns.RcodeServerFailure
 
 	createdAt := date(2019, 1, 1)
-	c := New(100, time.Duration(10*time.Millisecond))
+	c := New(100)
+	c.interval = 10 * time.Millisecond
 	defer handleErr(t, c.Close)
 	var tests = []struct {
 		msg                  *dns.Msg
@@ -129,7 +130,8 @@ func TestCacheCapacity(t *testing.T) {
 		{3, 2, 2},
 	}
 	for i, tt := range tests {
-		c := New(tt.capacity, 10*time.Minute)
+		c := New(tt.capacity)
+		c.interval = 10 * time.Millisecond
 		defer handleErr(t, c.Close)
 		var msgs []*dns.Msg
 		for i := 0; i < tt.addCount; i++ {
@@ -169,7 +171,8 @@ func TestCacheList(t *testing.T) {
 		{2, 0, 0, true},
 	}
 	for i, tt := range tests {
-		c := New(1024, 10*time.Minute)
+		c := New(1024)
+		c.interval = 10 * time.Millisecond
 		defer handleErr(t, c.Close)
 		var msgs []*dns.Msg
 		for i := 0; i < tt.addCount; i++ {
@@ -204,7 +207,7 @@ func BenchmarkNewKey(b *testing.B) {
 }
 
 func BenchmarkCache(b *testing.B) {
-	c := New(1000, 10*time.Minute)
+	c := New(1000)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		c.Set(uint64(n), &dns.Msg{})
@@ -213,7 +216,7 @@ func BenchmarkCache(b *testing.B) {
 }
 
 func BenchmarkCacheEviction(b *testing.B) {
-	c := New(1, time.Second)
+	c := New(1)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		c.Set(uint64(n), &dns.Msg{})

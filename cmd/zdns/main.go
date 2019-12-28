@@ -88,7 +88,7 @@ func (c *cli) run() {
 	sigHandler := signal.NewHandler(c.signal, logger)
 
 	// Cache
-	cache := cache.New(config.DNS.CacheSize, config.DNS.CacheExpiryInterval)
+	cache := cache.New(config.DNS.CacheSize)
 
 	// DNS server
 	proxy, err := dns.NewProxy(cache, logger, dns.ProxyOptions{

@@ -13,7 +13,6 @@ func TestConfig(t *testing.T) {
 listen = "0.0.0.0:53"
 protocol = "udp"
 cache_size = 2048
-cache_expiry_interval = "5m"
 resolvers = [
   "192.0.2.1:53",
   "192.0.2.2:53",
@@ -56,7 +55,6 @@ hijack = false
 		want  int
 	}{
 		{"DNS.CacheSize", conf.DNS.CacheSize, 2048},
-		{"DNS.CacheExpiryInterval", int(conf.DNS.CacheExpiryInterval), int(5 * time.Minute)},
 		{"len(DNS.Resolvers)", len(conf.DNS.Resolvers), 2},
 		{"Resolver.Timeout", int(conf.Resolver.Timeout), int(time.Second)},
 		{"DNS.RefreshInterval", int(conf.DNS.refreshInterval), int(48 * time.Hour)},
@@ -155,23 +153,18 @@ entries = ["0.0.0.0 host1"]
 timeout = "1s"
 `
 	conf12 := baseConf + `
-cache_expiry_interval = "foo"
-`
-	conf13 := baseConf + `
 log_mode = "foo"
 
 [resolver]
 timeout = "1s"
 `
-
-	conf14 := baseConf + `
+	conf13 := baseConf + `
 log_mode = "hijacked"
 
 [resolver]
 timeout = "1s"
 `
-
-	conf15 := baseConf + `
+	conf14 := baseConf + `
 resolvers = ["http://example.com"]
 [resolver]
 protocol = "https"
@@ -193,10 +186,9 @@ protocol = "https"
 		{conf9, "foo://bar: unsupported scheme: foo"},
 		{conf10, "file:///tmp/foo: timeout cannot be set for file url"},
 		{conf11, "[0.0.0.0 host1]: timeout cannot be set for inline hosts"},
-		{conf12, "invalid cache expiry interval: time: invalid duration foo"},
-		{conf13, "invalid log mode: foo"},
-		{conf14, `log_mode = "hijacked" requires log_database to be set`},
-		{conf15, "protocol https requires https scheme for resolver http://example.com"},
+		{conf12, "invalid log mode: foo"},
+		{conf13, `log_mode = "hijacked" requires log_database to be set`},
+		{conf14, "protocol https requires https scheme for resolver http://example.com"},
 	}
 	for i, tt := range tests {
 		var got string

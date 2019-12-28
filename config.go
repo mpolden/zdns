@@ -22,22 +22,20 @@ type Config struct {
 
 // DNSOptions controlers the behaviour of the DNS server.
 type DNSOptions struct {
-	Listen                    string
-	Protocol                  string `toml:"protocol"`
-	CacheExpiryIntervalString string `toml:"cache_expiry_interval"`
-	CacheExpiryInterval       time.Duration
-	CacheSize                 int    `toml:"cache_size"`
-	HijackMode                string `toml:"hijack_mode"`
-	hijackMode                int
-	RefreshInterval           string `toml:"hosts_refresh_interval"`
-	refreshInterval           time.Duration
-	Resolvers                 []string
-	LogDatabase               string `toml:"log_database"`
-	LogModeString             string `toml:"log_mode"`
-	LogMode                   int
-	LogTTLString              string `toml:"log_ttl"`
-	LogTTL                    time.Duration
-	ListenHTTP                string `toml:"listen_http"`
+	Listen          string
+	Protocol        string `toml:"protocol"`
+	CacheSize       int    `toml:"cache_size"`
+	HijackMode      string `toml:"hijack_mode"`
+	hijackMode      int
+	RefreshInterval string `toml:"hosts_refresh_interval"`
+	refreshInterval time.Duration
+	Resolvers       []string
+	LogDatabase     string `toml:"log_database"`
+	LogModeString   string `toml:"log_mode"`
+	LogMode         int
+	LogTTLString    string `toml:"log_ttl"`
+	LogTTL          time.Duration
+	ListenHTTP      string `toml:"listen_http"`
 }
 
 // ResolverOptions controls the behaviour of resolvers.
@@ -88,13 +86,6 @@ func (c *Config) load() error {
 	}
 	if c.DNS.CacheSize < 0 {
 		return fmt.Errorf("cache size must be >= 0")
-	}
-	if c.DNS.CacheExpiryIntervalString == "" {
-		c.DNS.CacheExpiryIntervalString = "15m"
-	}
-	c.DNS.CacheExpiryInterval, err = time.ParseDuration(c.DNS.CacheExpiryIntervalString)
-	if err != nil {
-		return fmt.Errorf("invalid cache expiry interval: %w", err)
 	}
 	switch c.DNS.HijackMode {
 	case "", "zero":

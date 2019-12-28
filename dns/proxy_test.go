@@ -68,7 +68,7 @@ func testProxy(t *testing.T) *Proxy {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy, err := NewProxy(cache.New(0, time.Minute), log, ProxyOptions{})
+	proxy, err := NewProxy(cache.New(0), log, ProxyOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestProxyWithResolvers(t *testing.T) {
 
 func TestProxyWithCache(t *testing.T) {
 	p := testProxy(t)
-	p.cache = cache.New(10, time.Minute)
+	p.cache = cache.New(10)
 	p.resolvers = []string{"resolver1"}
 	client := make(testClient)
 	p.client = client
@@ -214,7 +214,7 @@ func TestProxyWithCache(t *testing.T) {
 
 func TestProxyWithLogging(t *testing.T) {
 	logger := &testLogger{}
-	p, err := NewProxy(cache.New(0, time.Minute), logger, ProxyOptions{})
+	p, err := NewProxy(cache.New(0), logger, ProxyOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
