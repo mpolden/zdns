@@ -1,5 +1,7 @@
 # zdns
 
+[![Build Status](https://travis-ci.org/mpolden/zdns.svg?branch=master)](https://travis-ci.org/mpolden/zdns)
+
 _zdns_ is a privacy-focused [DNS
 resolver](https://en.wikipedia.org/wiki/Domain_Name_System#DNS_resolvers) and
 [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole).
