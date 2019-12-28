@@ -9,7 +9,7 @@
 #
 # protocol = "udp"
 
-# Maxium number of entries to keep in the DNS cache. The cache discards older
+# Maximum number of entries to keep in the DNS cache. The cache discards older
 # entries once the number of entries exceeds this size.
 #
 # cache_size = 4096
@@ -48,8 +48,8 @@
 #
 # log_database = ""
 
-# Enable request logging. The option log_database must be set when enabling
-# this.
+# Set logging mode. The option log_database must be set when setting this to
+# non-empty.
 #
 # all:          Logs all requests.
 # hijacked:     Logs only hijacked requests
@@ -57,12 +57,13 @@
 #
 # log_mode = ""
 
-# Configure how long logged requests should be kept.
+# Configure the duration of logged requests. Log entries older than this will be
+# removed.
 #
 # log_ttl = "168h"
 
 # HTTP server for inspecting logs and cache. Setting a listening address on the
-# form addr:port will enable the server.
+# form addr:port will enable the server. Set to empty string to disable.
 #
 # listen_http = "127.0.0.1:8053"
 
