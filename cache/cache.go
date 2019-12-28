@@ -9,7 +9,7 @@ import (
 	"github.com/miekg/dns"
 )
 
-// Cache represents a cache of DNS responses. Use New to initialize a new cache.
+// Cache is a cache of DNS messages.
 type Cache struct {
 	capacity int
 	values   map[uint64]*Value
@@ -19,22 +19,22 @@ type Cache struct {
 	now      func() time.Time
 }
 
-// Value represents a value stored in the cache.
+// Value wraps a DNS message stored in the cache.
 type Value struct {
 	CreatedAt time.Time
 	msg       *dns.Msg
 }
 
-// Rcode returns the response code of this cached value.
+// Rcode returns the response code of the cached value v.
 func (v *Value) Rcode() int { return v.msg.Rcode }
 
-// Question returns the question of this cached value.
+// Question returns the first question the cached value v.
 func (v *Value) Question() string { return v.msg.Question[0].Name }
 
-// Qtype returns the DNS request type of this cached value.
+// Qtype returns the query type of the cached value v
 func (v *Value) Qtype() uint16 { return v.msg.Question[0].Qtype }
 
-// Answers returns the DNS responses of this cached value.
+// Answers returns the answers of the cached value v.
 func (v *Value) Answers() []string {
 	var answers []string
 	for _, answer := range v.msg.Answer {
@@ -52,7 +52,7 @@ func (v *Value) Answers() []string {
 	return answers
 }
 
-// TTL returns the TTL of this cache value.
+// TTL returns the TTL of the cached value v.
 func (v *Value) TTL() time.Duration { return minTTL(v.msg) }
 
 // New creates a new cache of given capacity. Stale cache values are removed every expiryInterval.
@@ -95,7 +95,7 @@ func maintain(cache *Cache, interval time.Duration) {
 	}
 }
 
-// Close closes the cache.
+// Close stops any outstanding maintenance tasks.
 func (c *Cache) Close() error {
 	c.done <- true
 	return nil
@@ -121,7 +121,7 @@ func (c *Cache) getValue(k uint64) (*Value, bool) {
 	return v, true
 }
 
-// List returns the n most recent cache values.
+// List returns the n most recent values in cache c.
 func (c *Cache) List(n int) []*Value {
 	values := make([]*Value, 0, n)
 	c.mu.RLock()
@@ -139,8 +139,8 @@ func (c *Cache) List(n int) []*Value {
 	return values
 }
 
-// Set associated key k with the DNS message v. Message msg will expire from the cache according to its TTL. Setting a
-// new key in a cache that has reached its capacity will remove the first key.
+// Set associates key k with the DNS message msg. Message msg will expire from the cache according to its TTL. Setting a
+// new key in a cache that has reached its capacity will evict values in a FIFO order.
 func (c *Cache) Set(k uint64, msg *dns.Msg) {
 	if c.capacity == 0 {
 		return
@@ -187,7 +187,7 @@ func min(x, y uint32) uint32 {
 }
 
 func minTTL(m *dns.Msg) time.Duration {
-	var ttl uint32 = 1<<32 - 1 //  avoids importing math.MaxUint32
+	var ttl uint32 = 1<<32 - 1 //  avoid importing math
 	for _, answer := range m.Answer {
 		ttl = min(answer.Header().Ttl, ttl)
 	}
