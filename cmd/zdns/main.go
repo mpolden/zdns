@@ -12,6 +12,7 @@ import (
 	"github.com/mpolden/zdns"
 	"github.com/mpolden/zdns/cache"
 	"github.com/mpolden/zdns/dns"
+	"github.com/mpolden/zdns/dns/dnsutil"
 	"github.com/mpolden/zdns/http"
 	"github.com/mpolden/zdns/log"
 	"github.com/mpolden/zdns/signal"
@@ -93,12 +94,11 @@ func (c *cli) run() {
 	cache := cache.New(config.DNS.CacheSize)
 	sigHandler.OnClose(cache)
 
+	// Client
+	client := dnsutil.NewClient(config.Resolver.Protocol, config.Resolver.Timeout, config.DNS.Resolvers...)
+
 	// DNS server
-	proxy, err := dns.NewProxy(cache, logger, dns.ProxyOptions{
-		Resolvers: config.DNS.Resolvers,
-		Network:   config.Resolver.Protocol,
-		Timeout:   config.Resolver.Timeout,
-	})
+	proxy, err := dns.NewProxy(cache, client, logger)
 	fatal(err)
 	sigHandler.OnClose(proxy)
 

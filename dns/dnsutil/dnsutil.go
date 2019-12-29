@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/mpolden/zdns/dns/http"
 )
 
 var (
@@ -16,28 +17,45 @@ var (
 	RcodeToString = dns.RcodeToString
 )
 
-// Resolver is the interface that wraps the Exchange method of a DNS client.
-type Resolver interface {
+// Exchanger is the interface that wraps the Exchange method of a DNS client.
+type Exchanger interface {
 	Exchange(*dns.Msg, string) (*dns.Msg, time.Duration, error)
 }
 
-// Exchange sends a DNS query to addr and returns the response. If more than one addr is given, all are queried and the
-// first successful response is returned.
-func Exchange(resolver Resolver, msg *dns.Msg, addr ...string) (*dns.Msg, error) {
-	done := make(chan bool)
-	c := make(chan *dns.Msg)
+// Client wraps a DNS client and a list of server addresses.
+type Client struct {
+	Exchanger Exchanger
+	Addresses []string
+}
+
+// NewClient creates a new Client using the named network and addresses.
+func NewClient(network string, timeout time.Duration, addresses ...string) *Client {
+	var client Exchanger
+	if network == "https" {
+		client = http.NewClient(timeout)
+	} else {
+		client = &dns.Client{Net: network, Timeout: timeout}
+	}
+	return &Client{Exchanger: client, Addresses: addresses}
+}
+
+// Exchange performs a synchronous DNS query. All addresses in Client c are queried in parallel and the first successful
+// response is returned.
+func (c *Client) Exchange(msg *dns.Msg) (*dns.Msg, error) {
+	done := make(chan bool, 1)
+	ch := make(chan *dns.Msg, len(c.Addresses))
 	var wg sync.WaitGroup
-	wg.Add(len(addr))
+	wg.Add(len(c.Addresses))
 	err := errors.New("addr is empty")
-	for _, a := range addr {
+	for _, a := range c.Addresses {
 		go func(addr string) {
 			defer wg.Done()
-			r, _, err1 := resolver.Exchange(msg, addr)
+			r, _, err1 := c.Exchanger.Exchange(msg, addr)
 			if err1 != nil {
 				err = err1
 				return
 			}
-			c <- r
+			ch <- r
 		}(a)
 	}
 	go func() {
@@ -48,7 +66,7 @@ func Exchange(resolver Resolver, msg *dns.Msg, addr ...string) (*dns.Msg, error)
 		select {
 		case <-done:
 			return nil, err
-		case rr := <-c:
+		case rr := <-ch:
 			return rr, nil
 		}
 	}

@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
 	"github.com/mpolden/zdns/dns/dnsutil"
-	"github.com/mpolden/zdns/dns/http"
 )
 
 const (
@@ -33,24 +31,11 @@ type Handler func(*Request) *Reply
 
 // Proxy represents a DNS proxy.
 type Proxy struct {
-	Handler   Handler
-	resolvers []string
-	cache     *cache.Cache
-	logger    logger
-	server    *dns.Server
-	client    client
-	timeout   time.Duration
-}
-
-// ProxyOptions represents proxy configuration.
-type ProxyOptions struct {
-	Resolvers []string
-	Network   string
-	Timeout   time.Duration
-}
-
-type client interface {
-	Exchange(*dns.Msg, string) (*dns.Msg, time.Duration, error)
+	Handler Handler
+	cache   *cache.Cache
+	logger  logger
+	server  *dns.Server
+	client  *dnsutil.Client
 }
 
 type logger interface {
@@ -60,19 +45,11 @@ type logger interface {
 }
 
 // NewProxy creates a new DNS proxy.
-func NewProxy(cache *cache.Cache, logger logger, options ProxyOptions) (*Proxy, error) {
-	var c client
-	if options.Network == "https" {
-		c = http.NewClient(options.Timeout)
-	} else {
-		c = &dns.Client{Net: options.Network, Timeout: options.Timeout}
-	}
+func NewProxy(cache *cache.Cache, client *dnsutil.Client, logger logger) (*Proxy, error) {
 	return &Proxy{
-		logger:    logger,
-		cache:     cache,
-		resolvers: options.Resolvers,
-		client:    c,
-		timeout:   options.Timeout,
+		logger: logger,
+		cache:  cache,
+		client: client,
 	}, nil
 }
 
@@ -164,7 +141,7 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		p.writeMsg(w, msg, false)
 		return
 	}
-	rr, err := dnsutil.Exchange(p.client, r, p.resolvers...)
+	rr, err := p.client.Exchange(r)
 	if err == nil {
 		p.cache.Set(key, rr)
 		p.writeMsg(w, rr, false)
