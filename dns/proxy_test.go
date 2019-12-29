@@ -68,7 +68,7 @@ func testProxy(t *testing.T) *Proxy {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy, err := NewProxy(cache.New(0), log, ProxyOptions{})
+	proxy, err := NewProxy(cache.New(0), log, ProxyOptions{Timeout: 2 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,12 +159,14 @@ func TestProxy(t *testing.T) {
 
 func TestProxyWithResolvers(t *testing.T) {
 	p := testProxy(t)
-	p.resolvers = []string{"resolver1"}
 	client := make(testClient)
 	p.client = client
 	defer p.Close()
+	// No resolvers
+	assertFailure(t, p, TypeA, "host1")
 
 	// First and only resolver responds succesfully
+	p.resolvers = []string{"resolver1"}
 	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
 	m := dns.Msg{}
 	m.Id = dns.Id()
@@ -217,7 +219,7 @@ func TestProxyWithCache(t *testing.T) {
 
 func TestProxyWithLogging(t *testing.T) {
 	logger := &testLogger{}
-	p, err := NewProxy(cache.New(0), logger, ProxyOptions{})
+	p, err := NewProxy(cache.New(0), logger, ProxyOptions{Timeout: 2 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}

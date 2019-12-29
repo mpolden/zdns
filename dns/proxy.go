@@ -46,6 +46,7 @@ type Proxy struct {
 	logMode   int
 	server    *dns.Server
 	client    client
+	timeout   time.Duration
 }
 
 // ProxyOptions represents proxy configuration.
@@ -80,6 +81,7 @@ func NewProxy(cache *cache.Cache, logger logger, options ProxyOptions) (*Proxy, 
 		resolvers: options.Resolvers,
 		logMode:   options.LogMode,
 		client:    c,
+		timeout:   options.Timeout,
 	}, nil
 }
 
@@ -173,21 +175,14 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		p.writeMsg(w, msg, false)
 		return
 	}
-	for i, resolver := range p.resolvers {
-		rr, _, err := p.client.Exchange(r, resolver)
-		if err != nil {
-			p.logger.Printf("resolver %s failed: %s", resolver, err)
-			if i == len(p.resolvers)-1 { // No more resolvers to try
-				break
-			} else {
-				continue
-			}
-		}
+	rr, err := dnsutil.Exchange(p.client, r, p.resolvers...)
+	if err == nil {
 		p.cache.Set(key, rr)
 		p.writeMsg(w, rr, false)
-		return
+	} else {
+		p.logger.Printf("resolver(s) failed: %s", err)
+		dns.HandleFailed(w, r)
 	}
-	dns.HandleFailed(w, r)
 }
 
 // ListenAndServe listens on the network address addr and uses the server to process requests.

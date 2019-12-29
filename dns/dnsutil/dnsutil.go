@@ -1,6 +1,8 @@
 package dnsutil
 
 import (
+	"errors"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -13,6 +15,44 @@ var (
 	// RcodeToString contains a mapping of Mapping DNS response code to string.
 	RcodeToString = dns.RcodeToString
 )
+
+// Resolver is the interface that wraps the Exchange method of a DNS client.
+type Resolver interface {
+	Exchange(*dns.Msg, string) (*dns.Msg, time.Duration, error)
+}
+
+// Exchange sends a DNS query to addr and returns the response. If more than one addr is given, all are queried and the
+// first successful response is returned.
+func Exchange(resolver Resolver, msg *dns.Msg, addr ...string) (*dns.Msg, error) {
+	done := make(chan bool)
+	c := make(chan *dns.Msg)
+	var wg sync.WaitGroup
+	wg.Add(len(addr))
+	err := errors.New("addr is empty")
+	for _, a := range addr {
+		go func(addr string) {
+			defer wg.Done()
+			r, _, err1 := resolver.Exchange(msg, addr)
+			if err1 != nil {
+				err = err1
+				return
+			}
+			c <- r
+		}(a)
+	}
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+	for {
+		select {
+		case <-done:
+			return nil, err
+		case rr := <-c:
+			return rr, nil
+		}
+	}
+}
 
 // Answers returns all values in the answer section of DNS message msg.
 func Answers(msg *dns.Msg) []string {
