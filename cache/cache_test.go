@@ -81,14 +81,6 @@ func TestCache(t *testing.T) {
 	msgNameError.Id = dns.Id()
 	msgNameError.SetQuestion(dns.Fqdn("r4."), dns.TypeA)
 	msgNameError.Rcode = dns.RcodeNameError
-	msgLowerNsTTL := newA("r5.", 60, net.ParseIP("192.0.2.1"))
-	msgLowerNsTTL.Ns = []dns.RR{&dns.NS{Hdr: dns.RR_Header{Name: "ns1.r5.", Rrtype: dns.TypeNS, Class: dns.ClassINET, Ttl: 30}}}
-	msgLowerExtraTTL := newA("r6.", 3600, net.ParseIP("192.0.2.1"))
-	msgLowerExtraTTL.Ns = []dns.RR{&dns.NS{Hdr: dns.RR_Header{Name: "ns1.r6.", Rrtype: dns.TypeNS, Class: dns.ClassINET, Ttl: 60}}}
-	msgLowerExtraTTL.Extra = []dns.RR{
-		&dns.OPT{Hdr: dns.RR_Header{Name: "EDNS", Rrtype: dns.TypeOPT, Class: dns.ClassINET, Ttl: 10}}, // Ignored
-		&dns.A{Hdr: dns.RR_Header{Name: "ns1.r6.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 30}},
-	}
 
 	now := date(2019, 1, 1)
 	nowFn := func() time.Time { return now }
@@ -104,9 +96,7 @@ func TestCache(t *testing.T) {
 		{msg, now.Add(30 * time.Second), true, &Value{CreatedAt: now, msg: msg}}, // Not expired when below TTL
 		{msg, now.Add(60 * time.Second), true, &Value{CreatedAt: now, msg: msg}}, // Not expired until TTL exceeds
 		{msgNameError, now, true, &Value{CreatedAt: now, msg: msgNameError}},     // NXDOMAIN is cached
-		{msg, now.Add(61 * time.Second), false, nil},                             // Expired due to answer TTL
-		{msgLowerNsTTL, now.Add(31 * time.Second), false, nil},                   // Expired due to lower NS TTL
-		{msgLowerExtraTTL, now.Add(31 * time.Second), false, nil},                // Expired due to lower Extra TTL
+		{msg, now.Add(61 * time.Second), false, nil},                             // Expired due to TTL exceeded
 		{msgWithZeroTTL, now, false, nil},                                        // 0 TTL is not cached
 		{msgFailure, now, false, nil},                                            // Non-cacheable rcode
 	}

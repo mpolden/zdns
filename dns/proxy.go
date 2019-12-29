@@ -9,6 +9,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
 	"github.com/mpolden/zdns/dns/http"
+	"github.com/mpolden/zdns/dnsutil"
 )
 
 const (
@@ -22,14 +23,6 @@ const (
 	LogAll
 	// LogHijacked only logs hijacked DNS requests.
 	LogHijacked
-)
-
-var (
-	// TypeToString contains a mapping of DNS request type to string.
-	TypeToString = dns.TypeToString
-
-	// RcodeToString contains a mapping of Mapping DNS return code to string.
-	RcodeToString = dns.RcodeToString
 )
 
 // Request represents a simplified DNS request.
@@ -151,28 +144,6 @@ func (p *Proxy) Close() error {
 	return nil
 }
 
-func answers(msg *dns.Msg) []string {
-	var answers []string
-	for _, answer := range msg.Answer {
-		// Log answers for the following DNS types. Other types are still logged, but their answers are not.
-		switch v := answer.(type) {
-		case *dns.A:
-			answers = append(answers, v.A.String())
-		case *dns.AAAA:
-			answers = append(answers, v.AAAA.String())
-		case *dns.MX:
-			answers = append(answers, v.Mx)
-		case *dns.PTR:
-			answers = append(answers, v.Ptr)
-		case *dns.NS:
-			answers = append(answers, v.Ns)
-		case *dns.CNAME:
-			answers = append(answers, v.Target)
-		}
-	}
-	return answers
-}
-
 func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 	if p.logMode == LogAll || (hijacked && p.logMode == LogHijacked) {
 		var ip net.IP
@@ -184,8 +155,7 @@ func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 		default:
 			panic(fmt.Sprintf("unexpected remote address type %T", v))
 		}
-		answers := answers(msg)
-		p.logger.Record(ip, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, answers...)
+		p.logger.Record(ip, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, dnsutil.Answers(msg)...)
 	}
 	w.WriteMsg(msg)
 }

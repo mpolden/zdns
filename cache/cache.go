@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/mpolden/zdns/dnsutil"
 )
 
 // Cache is a cache of DNS messages.
@@ -35,25 +36,10 @@ func (v *Value) Question() string { return v.msg.Question[0].Name }
 func (v *Value) Qtype() uint16 { return v.msg.Question[0].Qtype }
 
 // Answers returns the answers of the cached value v.
-func (v *Value) Answers() []string {
-	var answers []string
-	for _, answer := range v.msg.Answer {
-		switch v := answer.(type) {
-		case *dns.A:
-			answers = append(answers, v.A.String())
-		case *dns.AAAA:
-			answers = append(answers, v.AAAA.String())
-		case *dns.MX:
-			answers = append(answers, v.Mx)
-		case *dns.PTR:
-			answers = append(answers, v.Ptr)
-		}
-	}
-	return answers
-}
+func (v *Value) Answers() []string { return dnsutil.Answers(v.msg) }
 
 // TTL returns the time to live of the cached value v.
-func (v *Value) TTL() time.Duration { return minTTL(v.msg) }
+func (v *Value) TTL() time.Duration { return dnsutil.MinTTL(v.msg) }
 
 // New creates a new cache of given capacity.
 func New(capacity int) *Cache { return newCache(capacity, time.Minute, time.Now) }
@@ -190,38 +176,12 @@ func (c *Cache) evictExpired() {
 }
 
 func (c *Cache) isExpired(v *Value) bool {
-	expiresAt := v.CreatedAt.Add(minTTL(v.msg))
+	expiresAt := v.CreatedAt.Add(dnsutil.MinTTL(v.msg))
 	return c.now().After(expiresAt)
 }
 
-func min(x, y uint32) uint32 {
-	if x < y {
-		return x
-	}
-	return y
-}
-
-func minTTL(m *dns.Msg) time.Duration {
-	var ttl uint32 = 1<<32 - 1 //  avoid importing math
-	// Choose the lowest TTL of answer, authority and additional sections.
-	for _, answer := range m.Answer {
-		ttl = min(answer.Header().Ttl, ttl)
-	}
-	for _, ns := range m.Ns {
-		ttl = min(ns.Header().Ttl, ttl)
-	}
-	for _, extra := range m.Extra {
-		// OPT (EDNS) is a pseudo record which uses TTL field for extended RCODE and flags
-		if extra.Header().Rrtype == dns.TypeOPT {
-			continue
-		}
-		ttl = min(extra.Header().Ttl, ttl)
-	}
-	return time.Duration(ttl) * time.Second
-}
-
 func canCache(m *dns.Msg) bool {
-	if minTTL(m) == 0 {
+	if dnsutil.MinTTL(m) == 0 {
 		return false
 	}
 	return m.Rcode == dns.RcodeSuccess || m.Rcode == dns.RcodeNameError

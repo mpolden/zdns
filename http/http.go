@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/mpolden/zdns/cache"
-	"github.com/mpolden/zdns/dns"
+	"github.com/mpolden/zdns/dnsutil"
 	"github.com/mpolden/zdns/log"
 )
 
@@ -74,10 +74,10 @@ func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) (interface
 		entries = append(entries, entry{
 			Time:     v.CreatedAt.UTC().Format(time.RFC3339),
 			TTL:      int64(v.TTL().Truncate(time.Second).Seconds()),
-			Qtype:    dns.TypeToString[v.Qtype()],
+			Qtype:    dnsutil.TypeToString[v.Qtype()],
 			Question: v.Question(),
 			Answers:  v.Answers(),
-			Rcode:    dns.RcodeToString[v.Rcode()],
+			Rcode:    dnsutil.RcodeToString[v.Rcode()],
 		})
 	}
 	return entries, nil
@@ -107,7 +107,7 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 			Time:       le.Time.UTC().Format(time.RFC3339),
 			RemoteAddr: le.RemoteAddr,
 			Hijacked:   &hijacked,
-			Qtype:      dns.TypeToString[le.Qtype],
+			Qtype:      dnsutil.TypeToString[le.Qtype],
 			Question:   le.Question,
 			Answers:    le.Answers,
 		})
