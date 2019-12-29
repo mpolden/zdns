@@ -12,9 +12,9 @@ import (
 )
 
 // RFC8484 (https://tools.ietf.org/html/rfc8484) claims that application/dns-message should be used, as does
-// https://developers.cloudflare.com/1.1.1.1/dns-over-https/wireformat/
+// https://developers.cloudflare.com/1.1.1.1/dns-over-https/wireformat/.
 //
-// However, Cloudflares service only accept this media type from one of the older RFC drafts
+// However, Cloudflare's service only accept this media type from one of the older RFC drafts
 // (https://tools.ietf.org/html/draft-ietf-doh-dns-over-https-05).
 const mimeType = "application/dns-udpwireformat"
 
