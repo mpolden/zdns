@@ -25,16 +25,28 @@ func newA(name string, ttl uint32, ipAddr ...net.IP) *dns.Msg {
 	return &m
 }
 
-func date(year int, month time.Month, day int) time.Time {
-	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
-}
-
 func reverse(msgs []*dns.Msg) []*dns.Msg {
 	reversed := make([]*dns.Msg, 0, len(msgs))
 	for i := len(msgs) - 1; i >= 0; i-- {
 		reversed = append(reversed, msgs[i])
 	}
 	return reversed
+}
+
+func awaitExpiry(t *testing.T, c *Cache, k uint64) {
+	now := time.Now()
+	for { // Loop until k is removed by maintainer
+		c.mu.RLock()
+		_, ok := c.values[k]
+		c.mu.RUnlock()
+		if !ok {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+		if time.Since(now) > 2*time.Second {
+			t.Fatalf("timed out waiting for expiry of key %d", k)
+		}
+	}
 }
 
 func TestNewKey(t *testing.T) {
@@ -56,22 +68,6 @@ func TestNewKey(t *testing.T) {
 	}
 }
 
-func awaitExpiry(t *testing.T, c *Cache, k uint64) {
-	now := time.Now()
-	for {
-		c.mu.RLock()
-		_, ok := c.values[k]
-		c.mu.RUnlock()
-		if !ok {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-		if time.Since(now) > 2*time.Second {
-			t.Fatalf("timed out waiting for expiry of key %d", k)
-		}
-	}
-}
-
 func TestCache(t *testing.T) {
 	msg := newA("r1.", 60, net.ParseIP("192.0.2.1"), net.ParseIP("192.0.2.2"))
 	msgWithZeroTTL := newA("r2.", 0, net.ParseIP("192.0.2.2"))
@@ -82,7 +78,7 @@ func TestCache(t *testing.T) {
 	msgNameError.SetQuestion(dns.Fqdn("r4."), dns.TypeA)
 	msgNameError.Rcode = dns.RcodeNameError
 
-	now := date(2019, 1, 1)
+	now := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
 	nowFn := func() time.Time { return now }
 	c := newCache(100, 10*time.Millisecond, nowFn)
 	defer c.Close()
@@ -125,7 +121,7 @@ func TestCache(t *testing.T) {
 			}
 		}
 		if (keyIdx != -1) != tt.ok {
-			t.Errorf("#%d: keys[%d] = %d, got expired key", i, keyIdx, k)
+			t.Errorf("#%d: keys[%d] = %d, found expired key", i, keyIdx, k)
 		}
 	}
 }
