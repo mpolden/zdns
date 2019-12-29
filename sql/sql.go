@@ -185,23 +185,35 @@ func (c *Client) DeleteLogBefore(t time.Time) (err error) {
 		return nil
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec("DELETE FROM log_rr_answer WHERE log_id IN (SELECT id FROM log WHERE time < $1)", t.Unix()); err != nil {
+	var ids []int64
+	if err := tx.Select(&ids, "SELECT id FROM log WHERE time < $1", t.Unix()); err == sql.ErrNoRows {
+		return nil
+	} else if err != nil {
 		return err
 	}
-	if _, err := tx.Exec("DELETE FROM log WHERE id NOT IN (SELECT log_id FROM log_rr_answer)"); err != nil {
-		return err
+	deleteByIds := []string{
+		"DELETE FROM log_rr_answer WHERE log_id IN (?)",
+		"DELETE FROM log WHERE id IN (?)",
 	}
-	if _, err := tx.Exec("DELETE FROM rr_type WHERE id NOT IN (SELECT rr_type_id FROM log)"); err != nil {
-		return err
+	for _, q := range deleteByIds {
+		query, args, err := sqlx.In(q, ids)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(query, args...); err != nil {
+			return err
+		}
 	}
-	if _, err := tx.Exec("DELETE FROM rr_question WHERE id NOT IN (SELECT rr_question_id FROM log)"); err != nil {
-		return err
+	deleteBySelection := []string{
+		"DELETE FROM rr_type WHERE id NOT IN (SELECT rr_type_id FROM log)",
+		"DELETE FROM rr_question WHERE id NOT IN (SELECT rr_question_id FROM log)",
+		"DELETE FROM rr_answer WHERE id NOT IN (SELECT rr_answer_id FROM log_rr_answer)",
+		"DELETE FROM remote_addr WHERE id NOT IN (SELECT remote_addr_id FROM log)",
 	}
-	if _, err := tx.Exec("DELETE FROM rr_answer WHERE id NOT IN (SELECT rr_answer_id FROM log_rr_answer)"); err != nil {
-		return err
-	}
-	if _, err := tx.Exec("DELETE FROM remote_addr WHERE id NOT IN (SELECT remote_addr_id FROM log)"); err != nil {
-		return err
+	for _, q := range deleteBySelection {
+		if _, err := tx.Exec(q); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }
