@@ -152,6 +152,12 @@ func TestDeleteLogBefore(t *testing.T) {
 	if want, got := 0, count(t, c, "SELECT COUNT(*) FROM rr_answer WHERE name = $1", answer); got != want {
 		t.Errorf("got %d rows for answer %q, want %d", got, question, want)
 	}
+
+	// Delete logs in the far past which matches 0 entries.
+	oneYear := time.Hour * 8760
+	if err := c.DeleteLogBefore(u.Add(-oneYear)); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestInterleavedRW(t *testing.T) {

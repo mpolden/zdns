@@ -186,10 +186,11 @@ func (c *Client) DeleteLogBefore(t time.Time) (err error) {
 	}
 	defer tx.Rollback()
 	var ids []int64
-	if err := tx.Select(&ids, "SELECT id FROM log WHERE time < $1", t.Unix()); err == sql.ErrNoRows {
-		return nil
-	} else if err != nil {
+	if err := tx.Select(&ids, "SELECT id FROM log WHERE time < $1", t.Unix()); err != nil {
 		return err
+	}
+	if len(ids) == 0 {
+		return nil
 	}
 	deleteByIds := []string{
 		"DELETE FROM log_rr_answer WHERE log_id IN (?)",
