@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
+	"github.com/mpolden/zdns/log"
 )
 
 // Config specifies is the zdns configuration parameters.
@@ -179,11 +179,11 @@ func (c *Config) load() error {
 	}
 	switch c.DNS.LogModeString {
 	case "":
-		c.DNS.LogMode = dns.LogDiscard
+		c.DNS.LogMode = log.ModeDiscard
 	case "all":
-		c.DNS.LogMode = dns.LogAll
+		c.DNS.LogMode = log.ModeAll
 	case "hijacked":
-		c.DNS.LogMode = dns.LogHijacked
+		c.DNS.LogMode = log.ModeHijacked
 	default:
 		return fmt.Errorf("invalid log mode: %s", c.DNS.LogModeString)
 	}

@@ -10,9 +10,19 @@ import (
 	"github.com/mpolden/zdns/sql"
 )
 
+const (
+	// ModeDiscard disables logging of DNS requests.
+	ModeDiscard = iota
+	// ModeAll logs all DNS requests.
+	ModeAll
+	// ModeHijacked only logs hijacked DNS requests.
+	ModeHijacked
+)
+
 // Logger wraps a standard log.Logger and an optional log database.
 type Logger struct {
 	*log.Logger
+	mode  int
 	queue chan Entry
 	db    *sql.Client
 	wg    sync.WaitGroup
@@ -23,6 +33,7 @@ type Logger struct {
 // RecordOptions configures recording of DNS requests.
 type RecordOptions struct {
 	Database string
+	Mode     int
 	TTL      time.Duration
 }
 
@@ -47,6 +58,7 @@ func newLogger(w io.Writer, prefix string, options RecordOptions, interval time.
 		Logger: log.New(w, prefix, 0),
 		queue:  make(chan Entry, 100),
 		now:    time.Now,
+		mode:   options.Mode,
 	}
 	var err error
 	if options.Database != "" {
@@ -95,6 +107,12 @@ func (l *Logger) Close() error {
 // Record records the given DNS request to the log database.
 func (l *Logger) Record(remoteAddr net.IP, hijacked bool, qtype uint16, question string, answers ...string) {
 	if l.db == nil {
+		return
+	}
+	if l.mode == ModeDiscard {
+		return
+	}
+	if l.mode == ModeHijacked && !hijacked {
 		return
 	}
 	l.queue <- Entry{

@@ -9,7 +9,7 @@ import (
 )
 
 func TestRecord(t *testing.T) {
-	logger, err := New(os.Stderr, "test: ", RecordOptions{Database: ":memory:"})
+	logger, err := New(os.Stderr, "test: ", RecordOptions{Database: ":memory:", Mode: ModeAll})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,8 +27,45 @@ func TestRecord(t *testing.T) {
 	}
 }
 
+func TestMode(t *testing.T) {
+	badHost := "badhost1."
+	goodHost := "goodhost1."
+	var tests = []struct {
+		question   string
+		remoteAddr net.IP
+		hijacked   bool
+		mode       int
+		log        bool
+	}{
+		{badHost, net.IPv4(192, 0, 2, 100), true, ModeAll, true},
+		{goodHost, net.IPv4(192, 0, 2, 100), true, ModeAll, true},
+		{badHost, net.IPv4(192, 0, 2, 100), true, ModeHijacked, true},
+		{goodHost, net.IPv4(192, 0, 2, 100), false, ModeHijacked, false},
+		{badHost, net.IPv4(192, 0, 2, 100), true, ModeDiscard, false},
+		{goodHost, net.IPv4(192, 0, 2, 100), false, ModeDiscard, false},
+	}
+	for i, tt := range tests {
+		logger, err := New(os.Stderr, "test: ", RecordOptions{Database: ":memory:", Mode: tt.mode})
+		if err != nil {
+			t.Fatal(err)
+		}
+		logger.mode = tt.mode
+		logger.Record(tt.remoteAddr, tt.hijacked, 1, tt.question)
+		if err := logger.Close(); err != nil { // Flush
+			t.Fatal(err)
+		}
+		entries, err := logger.Get(1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) > 0 != tt.log {
+			t.Errorf("#%d: question %q (hijacked=%t) should be logged in mode %d", i, tt.question, tt.hijacked, tt.mode)
+		}
+	}
+}
+
 func TestAnswerMerging(t *testing.T) {
-	logger, err := New(os.Stderr, "test: ", RecordOptions{Database: ":memory:"})
+	logger, err := New(os.Stderr, "test: ", RecordOptions{Database: ":memory:", Mode: ModeAll})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,6 +105,7 @@ func TestAnswerMerging(t *testing.T) {
 
 func TestLogPruning(t *testing.T) {
 	logger, err := newLogger(os.Stderr, "test: ", RecordOptions{
+		Mode:     ModeAll,
 		Database: ":memory:",
 		TTL:      time.Hour,
 	}, 10*time.Millisecond)

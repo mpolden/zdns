@@ -79,6 +79,7 @@ func (c *cli) run() {
 
 	// Logger
 	logger, err := log.New(c.out, logPrefix, log.RecordOptions{
+		Mode:     config.DNS.LogMode,
 		Database: config.DNS.LogDatabase,
 		TTL:      config.DNS.LogTTL,
 	})
@@ -95,7 +96,6 @@ func (c *cli) run() {
 	// DNS server
 	proxy, err := dns.NewProxy(cache, logger, dns.ProxyOptions{
 		Resolvers: config.DNS.Resolvers,
-		LogMode:   config.DNS.LogMode,
 		Network:   config.Resolver.Protocol,
 		Timeout:   config.Resolver.Timeout,
 	})

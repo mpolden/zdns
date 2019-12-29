@@ -48,18 +48,6 @@ func (c testClient) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Duration
 	return r.answer, time.Minute * 5, nil
 }
 
-type testLogger struct {
-	question   string
-	remoteAddr net.IP
-}
-
-func (l *testLogger) Close() error                           { return nil }
-func (l *testLogger) Printf(format string, v ...interface{}) {}
-func (l *testLogger) Record(remoteAddr net.IP, hijacked bool, qtype uint16, question string, answers ...string) {
-	l.question = question
-	l.remoteAddr = remoteAddr
-}
-
 func testProxy(t *testing.T) *Proxy {
 	log, err := log.New(ioutil.Discard, "", log.RecordOptions{})
 	if err != nil {
@@ -214,73 +202,6 @@ func TestProxyWithCache(t *testing.T) {
 	got, ok := p.cache.Get(k)
 	if !ok {
 		t.Errorf("cache.Get(%d) = (%+v, %t), want (%+v, %t)", k, got, ok, m, !ok)
-	}
-}
-
-func TestProxyWithLogging(t *testing.T) {
-	logger := &testLogger{}
-	p, err := NewProxy(cache.New(0), logger, ProxyOptions{Timeout: 2 * time.Second})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer p.Close()
-	badHost := "badhost1."
-	goodHost := "goodhost1."
-	p.resolvers = []string{"resolver1"}
-	client := make(testClient)
-	p.client = client
-	reply := ReplyA(goodHost, net.ParseIP("192.0.2.1"))
-	m := dns.Msg{}
-	m.Id = dns.Id()
-	m.RecursionDesired = true
-	m.Answer = reply.rr
-	client["resolver1"] = &resolver{answer: &m}
-	var h Handler = func(r *Request) *Reply {
-		if r.Name == badHost {
-			return ReplyA(r.Name, net.IPv4zero)
-		}
-		return nil
-	}
-	p.Handler = h
-
-	var tests = []struct {
-		question   string
-		remoteAddr net.IP
-		log        bool
-		logMode    int
-	}{
-		{badHost, net.IPv4(192, 0, 2, 100), true, LogAll},
-		{goodHost, net.IPv4(192, 0, 2, 100), true, LogAll},
-		{badHost, net.IPv4(192, 0, 2, 100), true, LogHijacked},
-		{goodHost, net.IPv4(192, 0, 2, 100), false, LogHijacked},
-		{badHost, net.IPv4(192, 0, 2, 100), false, LogDiscard},
-		{goodHost, net.IPv4(192, 0, 2, 100), false, LogDiscard},
-	}
-	for i, tt := range tests {
-		logger.question = ""
-		logger.remoteAddr = nil
-		p.logMode = tt.logMode
-		m.SetQuestion(tt.question, dns.TypeA)
-		if tt.question == badHost {
-			assertRR(t, p, &m, "0.0.0.0")
-		} else {
-			assertRR(t, p, &m, "192.0.2.1")
-		}
-		if tt.log {
-			if logger.question != tt.question {
-				t.Errorf("#%d: question = %q, want %q", i, logger.question, tt.question)
-			}
-			if logger.remoteAddr.String() != tt.remoteAddr.String() {
-				t.Errorf("#%d: remoteAddr = %s, want %s", i, logger.remoteAddr, tt.remoteAddr)
-			}
-		} else {
-			if logger.question != "" {
-				t.Errorf("#%d: question = %q, want %q", i, logger.question, "")
-			}
-			if logger.remoteAddr != nil {
-				t.Errorf("#%d: remoteAddr = %v, want %v", i, logger.remoteAddr, nil)
-			}
-		}
 	}
 }
 

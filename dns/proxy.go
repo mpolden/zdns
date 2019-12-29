@@ -17,12 +17,6 @@ const (
 	TypeA = dns.TypeA
 	// TypeAAAA represents the resource record type AAAA, an IPv6 address.
 	TypeAAAA = dns.TypeAAAA
-	// LogDiscard disables logging of DNS requests.
-	LogDiscard = iota
-	// LogAll logs all DNS requests.
-	LogAll
-	// LogHijacked only logs hijacked DNS requests.
-	LogHijacked
 )
 
 // Request represents a simplified DNS request.
@@ -43,7 +37,6 @@ type Proxy struct {
 	resolvers []string
 	cache     *cache.Cache
 	logger    logger
-	logMode   int
 	server    *dns.Server
 	client    client
 	timeout   time.Duration
@@ -52,7 +45,6 @@ type Proxy struct {
 // ProxyOptions represents proxy configuration.
 type ProxyOptions struct {
 	Resolvers []string
-	LogMode   int
 	Network   string
 	Timeout   time.Duration
 }
@@ -79,7 +71,6 @@ func NewProxy(cache *cache.Cache, logger logger, options ProxyOptions) (*Proxy, 
 		logger:    logger,
 		cache:     cache,
 		resolvers: options.Resolvers,
-		logMode:   options.LogMode,
 		client:    c,
 		timeout:   options.Timeout,
 	}, nil
@@ -147,18 +138,16 @@ func (p *Proxy) Close() error {
 }
 
 func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
-	if p.logMode == LogAll || (hijacked && p.logMode == LogHijacked) {
-		var ip net.IP
-		switch v := w.RemoteAddr().(type) {
-		case *net.UDPAddr:
-			ip = v.IP
-		case *net.TCPAddr:
-			ip = v.IP
-		default:
-			panic(fmt.Sprintf("unexpected remote address type %T", v))
-		}
-		p.logger.Record(ip, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, dnsutil.Answers(msg)...)
+	var ip net.IP
+	switch v := w.RemoteAddr().(type) {
+	case *net.UDPAddr:
+		ip = v.IP
+	case *net.TCPAddr:
+		ip = v.IP
+	default:
+		panic(fmt.Sprintf("unexpected remote address type %T", v))
 	}
+	p.logger.Record(ip, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, dnsutil.Answers(msg)...)
 	w.WriteMsg(msg)
 }
 

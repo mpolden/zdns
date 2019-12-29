@@ -30,7 +30,7 @@ func newA(name string, ttl uint32, ipAddr ...net.IP) *dns.Msg {
 }
 
 func testServer() (*httptest.Server, *Server) {
-	logger, err := log.New(ioutil.Discard, "", log.RecordOptions{Database: ":memory:"})
+	logger, err := log.New(ioutil.Discard, "", log.RecordOptions{Mode: log.ModeAll, Database: ":memory:"})
 	if err != nil {
 		panic(err)
 	}
