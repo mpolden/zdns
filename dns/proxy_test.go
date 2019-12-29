@@ -25,8 +25,8 @@ func (w *dnsWriter) TsigStatus() error           { return nil }
 func (w *dnsWriter) TsigTimersOnly(b bool)       {}
 func (w *dnsWriter) Hijack()                     {}
 
-func (w *dnsWriter) WriteMsg(m *dns.Msg) error {
-	w.lastReply = m
+func (w *dnsWriter) WriteMsg(msg *dns.Msg) error {
+	w.lastReply = msg
 	return nil
 }
 
@@ -37,7 +37,7 @@ type resolver struct {
 
 type testClient map[string]*resolver
 
-func (c testClient) Exchange(m *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
+func (c testClient) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
 	r, ok := c[addr]
 	if !ok {
 		panic("no such resolver: " + addr)
@@ -75,13 +75,13 @@ func testProxy(t *testing.T) *Proxy {
 	return proxy
 }
 
-func assertRR(t *testing.T, p *Proxy, m *dns.Msg, answer string) {
+func assertRR(t *testing.T, p *Proxy, msg *dns.Msg, answer string) {
 	var (
-		qtype = m.Question[0].Qtype
-		qname = m.Question[0].Name
+		qtype = msg.Question[0].Qtype
+		qname = msg.Question[0].Name
 	)
 	w := &dnsWriter{}
-	p.ServeDNS(w, m)
+	p.ServeDNS(w, msg)
 
 	qtypeString := dns.TypeToString[qtype]
 	answers := w.lastReply.Answer
@@ -90,8 +90,8 @@ func assertRR(t *testing.T, p *Proxy, m *dns.Msg, answer string) {
 	}
 	ans := answers[0]
 
-	if got := w.lastReply.Id; got != m.Id {
-		t.Errorf("id = %d, want %d for %s %s", got, m.Id, qtypeString, qname)
+	if got := w.lastReply.Id; got != msg.Id {
+		t.Errorf("id = %d, want %d for %s %s", got, msg.Id, qtypeString, qname)
 	}
 
 	want := net.ParseIP(answer)

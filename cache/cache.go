@@ -180,9 +180,9 @@ func (c *Cache) isExpired(v *Value) bool {
 	return c.now().After(expiresAt)
 }
 
-func canCache(m *dns.Msg) bool {
-	if dnsutil.MinTTL(m) == 0 {
+func canCache(msg *dns.Msg) bool {
+	if dnsutil.MinTTL(msg) == 0 {
 		return false
 	}
-	return m.Rcode == dns.RcodeSuccess || m.Rcode == dns.RcodeNameError
+	return msg.Rcode == dns.RcodeSuccess || msg.Rcode == dns.RcodeNameError
 }
