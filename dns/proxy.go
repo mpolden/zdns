@@ -176,10 +176,8 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	for i, resolver := range p.resolvers {
 		rr, _, err := p.client.Exchange(r, resolver)
 		if err != nil {
-			if p.logger != nil {
-				p.logger.Printf("resolver %s failed: %s", resolver, err)
-			}
-			if i == len(p.resolvers)-1 {
+			p.logger.Printf("resolver %s failed: %s", resolver, err)
+			if i == len(p.resolvers)-1 { // No more resolvers to try
 				break
 			} else {
 				continue
