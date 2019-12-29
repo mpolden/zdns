@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/mpolden/zdns/cache"
-	"github.com/mpolden/zdns/dnsutil"
+	"github.com/mpolden/zdns/dns/dnsutil"
 	"github.com/mpolden/zdns/log"
 )
 

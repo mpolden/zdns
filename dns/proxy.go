@@ -8,8 +8,8 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
+	"github.com/mpolden/zdns/dns/dnsutil"
 	"github.com/mpolden/zdns/dns/http"
-	"github.com/mpolden/zdns/dnsutil"
 )
 
 const (

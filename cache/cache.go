@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/mpolden/zdns/dnsutil"
+	"github.com/mpolden/zdns/dns/dnsutil"
 )
 
 // Cache is a cache of DNS messages.
