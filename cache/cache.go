@@ -42,8 +42,9 @@ func (v *Value) Answers() []string { return dnsutil.Answers(v.msg) }
 // TTL returns the time to live of the cached value v.
 func (v *Value) TTL() time.Duration { return dnsutil.MinTTL(v.msg) }
 
-// New creates a new cache of given capacity. If client is non-nil, the cache will prefetch expired entries in an effort
-// to serve results faster.
+// New creates a new cache of given capacity.
+//
+// If client is non-nil, the cache will prefetch expired entries in an effort to serve results faster.
 func New(capacity int, client *dnsutil.Client) *Cache {
 	return newCache(capacity, client, time.Now)
 }
@@ -70,30 +71,29 @@ func NewKey(name string, qtype, qclass uint16) uint64 {
 	return h.Sum64()
 }
 
-// Get returns the DNS message associated with key k. Get will return nil if any TTL in the answer section of the
-// message is exceeded according to time t.
-func (c *Cache) Get(k uint64) (*dns.Msg, bool) {
-	v, ok := c.getValue(k)
+// Get returns the DNS message associated with key.
+func (c *Cache) Get(key uint64) (*dns.Msg, bool) {
+	v, ok := c.getValue(key)
 	if !ok {
 		return nil, false
 	}
 	return v.msg, true
 }
 
-func (c *Cache) getValue(k uint64) (*Value, bool) {
+func (c *Cache) getValue(key uint64) (*Value, bool) {
 	c.mu.RLock()
-	v, ok := c.values[k]
+	v, ok := c.values[key]
 	c.mu.RUnlock()
 	if !ok {
 		return nil, false
 	}
 	if c.isExpired(v) {
 		if !c.prefetch() {
-			go c.evict(k)
+			go c.evict(key)
 			return nil, false
 		}
 		// Refresh and return a stale value
-		go c.refresh(k, v.msg)
+		go c.refresh(key, v.msg)
 	}
 	return v, true
 }
@@ -116,9 +116,14 @@ func (c *Cache) List(n int) []Value {
 	return values
 }
 
-// Set associates key k with the DNS message msg. Message msg will expire from the cache according to its TTL. Setting a
-// new key in a cache that has reached its capacity will evict values in a FIFO order.
-func (c *Cache) Set(k uint64, msg *dns.Msg) {
+// Set associates key with the DNS message msg.
+//
+// If prefetching is disabled, the message will be evicted from the cache according to its TTL.
+//
+// If prefetching is enabled, the message will never be evicted, but it will be refreshed when the TTL passes.
+//
+// Setting a new key in a cache that has reached its capacity will evict values in a FIFO order.
+func (c *Cache) Set(key uint64, msg *dns.Msg) {
 	if c.capacity == 0 {
 		return
 	}
@@ -132,8 +137,8 @@ func (c *Cache) Set(k uint64, msg *dns.Msg) {
 		delete(c.values, c.keys[0])
 		c.keys = c.keys[1:]
 	}
-	c.values[k] = &Value{CreatedAt: now, msg: msg}
-	c.keys = append(c.keys, k)
+	c.values[key] = &Value{CreatedAt: now, msg: msg}
+	c.keys = append(c.keys, key)
 }
 
 // Reset removes all values contained in cache c.
