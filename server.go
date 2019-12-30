@@ -31,7 +31,6 @@ type Server struct {
 	hosts      hosts.Hosts
 	logger     *log.Logger
 	proxy      *dns.Proxy
-	ticker     *time.Ticker
 	done       chan bool
 	mu         sync.RWMutex
 	httpClient *http.Client
@@ -50,8 +49,7 @@ func NewServer(logger *log.Logger, proxy *dns.Proxy, config Config) (*Server, er
 
 	// Periodically refresh hosts
 	if t := config.DNS.refreshInterval; t > 0 {
-		server.ticker = time.NewTicker(t)
-		go server.reloadHosts()
+		go server.reloadHosts(config.DNS.refreshInterval)
 	}
 
 	// Load initial hosts
@@ -113,13 +111,12 @@ func nonFqdn(s string) string {
 	return s
 }
 
-func (s *Server) reloadHosts() {
+func (s *Server) reloadHosts(interval time.Duration) {
 	for {
 		select {
 		case <-s.done:
-			s.ticker.Stop()
 			return
-		case <-s.ticker.C:
+		case <-time.After(interval):
 			s.loadHosts()
 		}
 	}
@@ -163,14 +160,12 @@ func (s *Server) loadHosts() {
 	s.logger.Printf("loaded %d hosts in total", len(hs))
 }
 
-// Reload reloads the configuration of this server.
+// Reload updates hosts entries of Server s.
 func (s *Server) Reload() { s.loadHosts() }
 
 // Close terminates all active operations and shuts down the DNS server.
 func (s *Server) Close() error {
-	if s.ticker != nil {
-		s.done <- true
-	}
+	s.done <- true
 	return nil
 }
 

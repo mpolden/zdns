@@ -29,12 +29,6 @@ const hostsFile2 = `
 192.0.2.6   badhost6
 `
 
-func handleErr(t *testing.T, fn func() error) {
-	if err := fn(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func httpHandler(t *testing.T, response string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := w.Write([]byte(response)); err != nil {
@@ -52,7 +46,7 @@ func tempFile(t *testing.T, s string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer handleErr(t, f.Close)
+	defer f.Close()
 	if err := ioutil.WriteFile(f.Name(), []byte(s), 0644); err != nil {
 		return "", err
 	}
@@ -178,7 +172,6 @@ func TestHijack(t *testing.T) {
 		},
 		logger: log,
 	}
-	defer handleErr(t, s.Close)
 
 	var tests = []struct {
 		rtype uint16
