@@ -94,7 +94,11 @@ func (c *cli) run() {
 	client := dnsutil.NewClient(config.Resolver.Protocol, config.Resolver.Timeout, config.DNS.Resolvers...)
 
 	// Cache
-	cache := cache.New(config.DNS.CacheSize, nil)
+	var cclient *dnsutil.Client
+	if config.DNS.CachePrefetch {
+		cclient = client
+	}
+	cache := cache.New(config.DNS.CacheSize, cclient)
 	sigHandler.OnClose(cache)
 
 	// DNS server

@@ -25,6 +25,7 @@ type DNSOptions struct {
 	Listen          string
 	Protocol        string `toml:"protocol"`
 	CacheSize       int    `toml:"cache_size"`
+	CachePrefetch   bool   `toml:"cache_prefetch"`
 	HijackMode      string `toml:"hijack_mode"`
 	hijackMode      int
 	RefreshInterval string `toml:"hosts_refresh_interval"`

@@ -14,7 +14,8 @@ configure.
 
 * **Control**: Filter unwanted content at the DNS-level. Similar to
   [Pi-hole](https://github.com/pi-hole/pi-hole).
-* **Fast**: Efficient filtering and caching of DNS requests.
+* **Fast**: Efficient filtering and caching of DNS requests. With pre-fetching
+  enabled, cached requests will never block waiting for the upstream resolver.
 * **Reliable**: Built with Go and [miekg/dns](https://github.com/miekg/dns) - a
   mature DNS library.
 * **Secure**: Protect your DNS requests from snooping and tampering using [DNS
