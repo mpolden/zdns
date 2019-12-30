@@ -164,11 +164,12 @@ func (c *Cache) Reset() {
 func (c *Cache) prefetch() bool { return c.client != nil }
 
 func (c *Cache) refreshExpired(interval time.Duration) {
+	// TODO: Reduce lock contention for large caches. Consider sync.Map
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	evicted := make(map[uint64]bool)
 	for k, v := range c.values {
-		// Value will expiry before the next interval. Refresh now
+		// Value will expire before the next interval. Refresh now
 		if c.isExpiredAfter(interval, v) {
 			q := v.msg.Question[0]
 			msg := dns.Msg{}
