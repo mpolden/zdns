@@ -90,12 +90,12 @@ func (c *cli) run() {
 	sigHandler := signal.NewHandler(c.signal, logger)
 	sigHandler.OnClose(logger)
 
-	// Cache
-	cache := cache.New(config.DNS.CacheSize)
-	sigHandler.OnClose(cache)
-
 	// Client
 	client := dnsutil.NewClient(config.Resolver.Protocol, config.Resolver.Timeout, config.DNS.Resolvers...)
+
+	// Cache
+	cache := cache.New(config.DNS.CacheSize, nil)
+	sigHandler.OnClose(cache)
 
 	// DNS server
 	proxy, err := dns.NewProxy(cache, client, logger)

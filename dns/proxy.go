@@ -143,8 +143,8 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 	rr, err := p.client.Exchange(r)
 	if err == nil {
-		p.cache.Set(key, rr)
 		p.writeMsg(w, rr, false)
+		p.cache.Set(key, rr)
 	} else {
 		p.logger.Printf("resolver(s) failed: %s", err)
 		dns.HandleFailed(w, r)

@@ -106,7 +106,7 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy, err := dns.NewProxy(cache.New(0), nil, logger)
+	proxy, err := dns.NewProxy(cache.New(0, nil), nil, logger)
 	if err != nil {
 		t.Fatal(err)
 	}

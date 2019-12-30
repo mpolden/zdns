@@ -34,7 +34,7 @@ func testServer() (*httptest.Server, *Server) {
 	if err != nil {
 		panic(err)
 	}
-	cache := cache.New(10)
+	cache := cache.New(10, nil)
 	server := Server{logger: logger, cache: cache}
 	return httptest.NewServer(server.handler()), &server
 }

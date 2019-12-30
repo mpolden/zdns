@@ -8,7 +8,16 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/mpolden/zdns/dns/dnsutil"
 )
+
+type testExchanger struct {
+	answer *dns.Msg
+}
+
+func (e *testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
+	return e.answer, time.Second, nil
+}
 
 func newA(name string, ttl uint32, ipAddr ...net.IP) *dns.Msg {
 	m := dns.Msg{}
@@ -80,7 +89,7 @@ func TestCache(t *testing.T) {
 
 	now := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
 	nowFn := func() time.Time { return now }
-	c := newCache(100, 10*time.Millisecond, nowFn)
+	c := newCache(100, nil, 10*time.Millisecond, nowFn)
 	defer c.Close()
 	var tests = []struct {
 		msg       *dns.Msg
@@ -136,7 +145,7 @@ func TestCacheCapacity(t *testing.T) {
 		{3, 2, 2},
 	}
 	for i, tt := range tests {
-		c := New(tt.capacity)
+		c := New(tt.capacity, nil)
 		defer c.Close()
 		var msgs []*dns.Msg
 		for i := 0; i < tt.addCount; i++ {
@@ -176,7 +185,7 @@ func TestCacheList(t *testing.T) {
 		{2, 0, 0, true},
 	}
 	for i, tt := range tests {
-		c := New(1024)
+		c := New(1024, nil)
 		defer c.Close()
 		var msgs []*dns.Msg
 		for i := 0; i < tt.addCount; i++ {
@@ -205,7 +214,7 @@ func TestCacheList(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
-	c := New(10)
+	c := New(10, nil)
 	c.Set(uint64(1), &dns.Msg{})
 	c.Reset()
 	if got, want := len(c.values), 0; got != want {
@@ -216,6 +225,44 @@ func TestReset(t *testing.T) {
 	}
 }
 
+func TestCachePrefetch(t *testing.T) {
+	exchanger := testExchanger{}
+	client := &dnsutil.Client{Exchanger: &exchanger, Addresses: []string{"resolver"}}
+	now := time.Now()
+	nowFn := func() time.Time { return now }
+	c := newCache(10, client, time.Hour, nowFn)
+
+	var key uint64 = 1
+	ip := net.ParseIP("192.0.2.1")
+	response := newA("r1.", 60, ip)
+	c.Set(key, response)
+
+	// Not refreshed yet
+	c.now = func() time.Time { return now.Add(30 * time.Second) }
+	c.refreshExpired(0)
+	rr, _ := c.Get(key)
+	answers := dnsutil.Answers(rr)
+	if got, want := answers[0], ip.String(); got != want {
+		t.Errorf("got ip %s, want %s", got, want)
+	}
+
+	// Expiry of cached value is ignored as prefetching is enabled
+	c.now = func() time.Time { return now.Add(61 * time.Second) }
+	if _, ok := c.Get(key); !ok {
+		t.Errorf("Get(%d) = (_, %t), want (_, %t)", key, ok, !ok)
+	}
+
+	// Refresh expired entry
+	ip = net.ParseIP("192.0.2.2")
+	exchanger.answer = newA("r1.", 60, ip)
+	c.refreshExpired(0)
+	rr, _ = c.Get(key)
+	answers = dnsutil.Answers(rr)
+	if got, want := answers[0], ip.String(); got != want {
+		t.Errorf("got ip %s, want %s", got, want)
+	}
+}
+
 func BenchmarkNewKey(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		NewKey("key", 1, 1)
@@ -223,7 +270,7 @@ func BenchmarkNewKey(b *testing.B) {
 }
 
 func BenchmarkCache(b *testing.B) {
-	c := New(1000)
+	c := New(1000, nil)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		c.Set(uint64(n), &dns.Msg{})
@@ -232,7 +279,7 @@ func BenchmarkCache(b *testing.B) {
 }
 
 func BenchmarkCacheEviction(b *testing.B) {
-	c := New(1)
+	c := New(1, nil)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		c.Set(uint64(n), &dns.Msg{})

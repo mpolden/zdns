@@ -57,7 +57,7 @@ func testProxy(t *testing.T) *Proxy {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy, err := NewProxy(cache.New(0), nil, log)
+	proxy, err := NewProxy(cache.New(0, nil), nil, log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestProxyWithResolvers(t *testing.T) {
 
 func TestProxyWithCache(t *testing.T) {
 	p := testProxy(t)
-	p.cache = cache.New(10)
+	p.cache = cache.New(10, nil)
 	exchanger := make(testExchanger)
 	p.client = &dnsutil.Client{Exchanger: exchanger}
 	p.client.Addresses = []string{"resolver1"}
