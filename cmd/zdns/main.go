@@ -99,7 +99,6 @@ func (c *cli) run() {
 		cclient = client
 	}
 	cache := cache.New(config.DNS.CacheSize, cclient)
-	sigHandler.OnClose(cache)
 
 	// DNS server
 	proxy, err := dns.NewProxy(cache, client, logger)

@@ -45,24 +45,20 @@ func (v *Value) TTL() time.Duration { return dnsutil.MinTTL(v.msg) }
 // New creates a new cache of given capacity. If client is non-nil, the cache will prefetch expired entries in an effort
 // to serve results faster.
 func New(capacity int, client *dnsutil.Client) *Cache {
-	return newCache(capacity, client, 10*time.Second, time.Now)
+	return newCache(capacity, client, time.Now)
 }
 
-func newCache(capacity int, client *dnsutil.Client, interval time.Duration, now func() time.Time) *Cache {
+func newCache(capacity int, client *dnsutil.Client, now func() time.Time) *Cache {
 	if capacity < 0 {
 		capacity = 0
 	}
-	c := &Cache{
+	return &Cache{
 		client:   client,
 		now:      now,
 		capacity: capacity,
 		values:   make(map[uint64]*Value, capacity),
 		done:     make(chan bool),
 	}
-	if !c.prefetch() {
-		go maintain(c, interval)
-	}
-	return c
 }
 
 // NewKey creates a new cache key for the DNS name, qtype and qclass
@@ -72,25 +68,6 @@ func NewKey(name string, qtype, qclass uint16) uint64 {
 	binary.Write(h, binary.BigEndian, qtype)
 	binary.Write(h, binary.BigEndian, qclass)
 	return h.Sum64()
-}
-
-func maintain(cache *Cache, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	for {
-		select {
-		case <-cache.done:
-			ticker.Stop()
-			return
-		case <-ticker.C:
-			cache.evictExpired()
-		}
-	}
-}
-
-// Close stops any outstanding maintenance tasks.
-func (c *Cache) Close() error {
-	c.done <- true
-	return nil
 }
 
 // Get returns the DNS message associated with key k. Get will return nil if any TTL in the answer section of the
@@ -112,6 +89,7 @@ func (c *Cache) getValue(k uint64) (*Value, bool) {
 	}
 	if c.isExpired(v) {
 		if !c.prefetch() {
+			go c.evict(k)
 			return nil, false
 		}
 		// Refresh and return a stale value
@@ -169,7 +147,6 @@ func (c *Cache) Reset() {
 func (c *Cache) prefetch() bool { return c.client != nil }
 
 func (c *Cache) refresh(key uint64, old *dns.Msg) {
-	evicted := make(map[uint64]bool, 1)
 	q := old.Question[0]
 	msg := dns.Msg{}
 	msg.SetQuestion(q.Name, q.Qtype)
@@ -183,33 +160,17 @@ func (c *Cache) refresh(key uint64, old *dns.Msg) {
 		c.values[key].CreatedAt = c.now()
 		c.values[key].msg = r
 	} else {
-		delete(c.values, key)
-		evicted[key] = true
+		c.evict(key)
 	}
-	c.reorderKeys(evicted)
 }
 
-func (c *Cache) evictExpired() {
+func (c *Cache) evict(key uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	evicted := make(map[uint64]bool)
-	for k, v := range c.values {
-		if c.isExpired(v) {
-			delete(c.values, k)
-			evicted[k] = true
-		}
-	}
-	c.reorderKeys(evicted)
-}
-
-func (c *Cache) reorderKeys(evicted map[uint64]bool) {
-	if len(evicted) == 0 {
-		return
-	}
-	// At least one entry was evicted. The ordered list of keys must be updated.
+	delete(c.values, key)
 	var keys []uint64
 	for _, k := range c.keys {
-		if _, ok := evicted[k]; ok {
+		if k == key {
 			continue
 		}
 		keys = append(keys, k)

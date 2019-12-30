@@ -89,8 +89,7 @@ func TestCache(t *testing.T) {
 
 	now := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
 	nowFn := func() time.Time { return now }
-	c := newCache(100, nil, 10*time.Millisecond, nowFn)
-	defer c.Close()
+	c := newCache(100, nil, nowFn)
 	var tests = []struct {
 		msg       *dns.Msg
 		queriedAt time.Time
@@ -146,7 +145,6 @@ func TestCacheCapacity(t *testing.T) {
 	}
 	for i, tt := range tests {
 		c := New(tt.capacity, nil)
-		defer c.Close()
 		var msgs []*dns.Msg
 		for i := 0; i < tt.addCount; i++ {
 			m := newA(fmt.Sprintf("r%d", i), 60, net.ParseIP(fmt.Sprintf("192.0.2.%d", i)))
@@ -186,7 +184,6 @@ func TestCacheList(t *testing.T) {
 	}
 	for i, tt := range tests {
 		c := New(1024, nil)
-		defer c.Close()
 		var msgs []*dns.Msg
 		for i := 0; i < tt.addCount; i++ {
 			m := newA(fmt.Sprintf("r%d", i), 60, net.ParseIP(fmt.Sprintf("192.0.2.%d", i)))
@@ -230,7 +227,7 @@ func TestCachePrefetch(t *testing.T) {
 	client := &dnsutil.Client{Exchanger: &exchanger, Addresses: []string{"resolver"}}
 	now := time.Now()
 	nowFn := func() time.Time { return now }
-	c := newCache(10, client, time.Hour, nowFn)
+	c := newCache(10, client, nowFn)
 
 	var key uint64 = 1
 	ip := net.ParseIP("192.0.2.1")
