@@ -52,15 +52,17 @@ func newCache(capacity int, client *dnsutil.Client, interval time.Duration, now 
 	if capacity < 0 {
 		capacity = 0
 	}
-	cache := &Cache{
+	c := &Cache{
 		client:   client,
 		now:      now,
 		capacity: capacity,
 		values:   make(map[uint64]*Value, capacity),
 		done:     make(chan bool),
 	}
-	go maintain(cache, interval)
-	return cache
+	if !c.prefetch() {
+		go maintain(c, interval)
+	}
+	return c
 }
 
 // NewKey creates a new cache key for the DNS name, qtype and qclass
@@ -80,11 +82,7 @@ func maintain(cache *Cache, interval time.Duration) {
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			if cache.prefetch() {
-				cache.refreshExpired(interval)
-			} else {
-				cache.evictExpired()
-			}
+			cache.evictExpired()
 		}
 	}
 }
@@ -109,8 +107,15 @@ func (c *Cache) getValue(k uint64) (*Value, bool) {
 	c.mu.RLock()
 	v, ok := c.values[k]
 	c.mu.RUnlock()
-	if !ok || (!c.prefetch() && c.isExpired(v)) {
+	if !ok {
 		return nil, false
+	}
+	if c.isExpired(v) {
+		if !c.prefetch() {
+			return nil, false
+		}
+		// Refresh and return a stale value
+		go c.refresh(k, v.msg)
 	}
 	return v, true
 }
@@ -163,30 +168,23 @@ func (c *Cache) Reset() {
 
 func (c *Cache) prefetch() bool { return c.client != nil }
 
-func (c *Cache) refreshExpired(interval time.Duration) {
-	// TODO: Reduce lock contention for large caches. Consider sync.Map
+func (c *Cache) refresh(key uint64, old *dns.Msg) {
+	evicted := make(map[uint64]bool, 1)
+	q := old.Question[0]
+	msg := dns.Msg{}
+	msg.SetQuestion(q.Name, q.Qtype)
+	r, err := c.client.Exchange(&msg)
+	if err != nil {
+		return // Retry on next request
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	evicted := make(map[uint64]bool)
-	for k, v := range c.values {
-		// Value will expire before the next interval. Refresh now
-		if c.isExpiredAfter(interval, v) {
-			q := v.msg.Question[0]
-			msg := dns.Msg{}
-			msg.SetQuestion(q.Name, q.Qtype)
-			r, err := c.client.Exchange(&msg)
-			if err != nil {
-				continue // Will be retried on next run
-			}
-			if canCache(r) {
-				c.values[k].CreatedAt = c.now()
-				c.values[k].msg = r
-			} else {
-				// Can no longer be cached. Evict
-				delete(c.values, k)
-				evicted[k] = true
-			}
-		}
+	if canCache(r) {
+		c.values[key].CreatedAt = c.now()
+		c.values[key].msg = r
+	} else {
+		delete(c.values, key)
+		evicted[key] = true
 	}
 	c.reorderKeys(evicted)
 }
@@ -219,12 +217,10 @@ func (c *Cache) reorderKeys(evicted map[uint64]bool) {
 	c.keys = keys
 }
 
-func (c *Cache) isExpiredAfter(d time.Duration, v *Value) bool {
+func (c *Cache) isExpired(v *Value) bool {
 	expiresAt := v.CreatedAt.Add(dnsutil.MinTTL(v.msg))
-	return c.now().Add(d).After(expiresAt)
+	return c.now().After(expiresAt)
 }
-
-func (c *Cache) isExpired(v *Value) bool { return c.isExpiredAfter(0, v) }
 
 func canCache(msg *dns.Msg) bool {
 	if dnsutil.MinTTL(msg) == 0 {

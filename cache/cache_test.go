@@ -235,11 +235,12 @@ func TestCachePrefetch(t *testing.T) {
 	var key uint64 = 1
 	ip := net.ParseIP("192.0.2.1")
 	response := newA("r1.", 60, ip)
+	exchanger.answer = response
 	c.Set(key, response)
 
 	// Not refreshed yet
 	c.now = func() time.Time { return now.Add(30 * time.Second) }
-	c.refreshExpired(0)
+	c.refresh(key, response)
 	rr, _ := c.Get(key)
 	answers := dnsutil.Answers(rr)
 	if got, want := answers[0], ip.String(); got != want {
@@ -255,7 +256,7 @@ func TestCachePrefetch(t *testing.T) {
 	// Refresh expired entry
 	ip = net.ParseIP("192.0.2.2")
 	exchanger.answer = newA("r1.", 60, ip)
-	c.refreshExpired(0)
+	c.refresh(key, response)
 	rr, _ = c.Get(key)
 	answers = dnsutil.Answers(rr)
 	if got, want := answers[0], ip.String(); got != want {
