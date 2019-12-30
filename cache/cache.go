@@ -17,7 +17,6 @@ type Cache struct {
 	values   map[uint64]*Value
 	keys     []uint64
 	mu       sync.RWMutex
-	done     chan bool
 	now      func() time.Time
 }
 
@@ -58,7 +57,6 @@ func newCache(capacity int, client *dnsutil.Client, now func() time.Time) *Cache
 		now:      now,
 		capacity: capacity,
 		values:   make(map[uint64]*Value, capacity),
-		done:     make(chan bool),
 	}
 }
 
