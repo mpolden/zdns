@@ -78,6 +78,7 @@ func TestRequests(t *testing.T) {
 	defer httpSrv.Close()
 	srv.logger.Record(net.IPv4(127, 0, 0, 42), false, 1, "example.com.", "192.0.2.100", "192.0.2.101")
 	srv.logger.Record(net.IPv4(127, 0, 0, 254), true, 28, "example.com.", "2001:db8::1")
+	srv.logger.Close() // Flush
 	srv.cache.Set(1, newA("1.example.com.", 60, net.IPv4(192, 0, 2, 200)))
 	srv.cache.Set(2, newA("2.example.com.", 30, net.IPv4(192, 0, 2, 201)))
 
