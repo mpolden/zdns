@@ -8,18 +8,12 @@ import (
 	"testing"
 )
 
-func handleErr(t *testing.T, fn func() error) {
-	if err := fn(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func tempFile(t *testing.T, s string) (string, error) {
 	f, err := ioutil.TempFile("", "zdns")
 	if err != nil {
 		return "", err
 	}
-	defer handleErr(t, f.Close)
+	defer f.Close()
 	if err := ioutil.WriteFile(f.Name(), []byte(s), 0644); err != nil {
 		return "", err
 	}
@@ -51,7 +45,7 @@ hijack_mode = "zero"
 		args:       []string{"-f", f},
 		signal:     make(chan os.Signal, 1),
 	}
-	wg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
