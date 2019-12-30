@@ -6,6 +6,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func tempFile(t *testing.T, s string) (string, error) {
@@ -39,18 +40,21 @@ hijack_mode = "zero"
 	}
 	defer os.Remove(f)
 
-	main := cli{
-		out:        ioutil.Discard,
-		configFile: f,
-		args:       []string{"-f", f},
-		signal:     make(chan os.Signal, 1),
-	}
+	sig := make(chan os.Signal, 1)
+	c := newCli(os.Stderr, []string{"-f", f}, f, sig)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		main.run()
+		c.run()
 	}()
-	main.signal <- syscall.SIGTERM
+	ts := time.Now()
+	for c.started < 2 {
+		time.Sleep(10 * time.Millisecond) // Wait for servers to start
+		if time.Since(ts) > 2*time.Second {
+			t.Fatal("timed out waiting for servers to start")
+		}
+	}
+	sig <- syscall.SIGTERM
 	wg.Wait()
 }

@@ -27,11 +27,9 @@ const (
 type server interface{ ListenAndServe() error }
 
 type cli struct {
-	wg         sync.WaitGroup
-	configFile string
-	out        io.Writer
-	args       []string
-	signal     chan os.Signal
+	servers []server
+	started int
+	wg      sync.WaitGroup
 }
 
 func defaultConfigFile() string { return filepath.Join(os.Getenv("HOME"), configName) }
@@ -61,17 +59,18 @@ func (c *cli) runServer(server server) {
 			fatal(err)
 		}
 	}()
+	c.started++
 }
 
-func (c *cli) run() {
+func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal) *cli {
 	f := flag.CommandLine
-	f.SetOutput(c.out)
-	confFile := f.String("f", c.configFile, "config file `path`")
+	f.SetOutput(out)
+	confFile := f.String("f", configFile, "config file `path`")
 	help := f.Bool("h", false, "print usage")
-	f.Parse(c.args)
+	f.Parse(args)
 	if *help {
 		f.Usage()
-		return
+		return nil
 	}
 
 	// Config
@@ -79,7 +78,7 @@ func (c *cli) run() {
 	fatal(err)
 
 	// Logger
-	logger, err := log.New(c.out, logPrefix, log.RecordOptions{
+	logger, err := log.New(out, logPrefix, log.RecordOptions{
 		Mode:     config.DNS.LogMode,
 		Database: config.DNS.LogDatabase,
 		TTL:      config.DNS.LogTTL,
@@ -87,7 +86,7 @@ func (c *cli) run() {
 	fatal(err)
 
 	// Signal handling
-	sigHandler := signal.NewHandler(c.signal, logger)
+	sigHandler := signal.NewHandler(sig, logger)
 	sigHandler.OnClose(logger)
 
 	// Client
@@ -109,23 +108,27 @@ func (c *cli) run() {
 	fatal(err)
 	sigHandler.OnReload(dnsSrv)
 	sigHandler.OnClose(dnsSrv)
-	c.runServer(dnsSrv)
 
+	servers := []server{dnsSrv}
 	// HTTP server
 	if config.DNS.ListenHTTP != "" {
 		httpSrv := http.NewServer(logger, cache, config.DNS.ListenHTTP)
 		sigHandler.OnClose(httpSrv)
-		c.runServer(httpSrv)
+		servers = append(servers, httpSrv)
+	}
+	return &cli{servers: servers}
+}
+
+func (c *cli) run() {
+	for _, srv := range c.servers {
+		c.runServer(srv)
 	}
 	c.wg.Wait()
 }
 
 func main() {
-	c := cli{
-		out:        os.Stderr,
-		configFile: defaultConfigFile(),
-		args:       os.Args[1:],
-		signal:     make(chan os.Signal, 1),
+	c := newCli(os.Stderr, os.Args[1:], defaultConfigFile(), make(chan os.Signal, 1))
+	if c != nil {
+		c.run()
 	}
-	c.run()
 }
