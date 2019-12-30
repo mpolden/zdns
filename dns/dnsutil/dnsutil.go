@@ -2,6 +2,7 @@ package dnsutil
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -52,7 +53,7 @@ func (c *Client) Exchange(msg *dns.Msg) (*dns.Msg, error) {
 			defer wg.Done()
 			r, _, err1 := c.Exchanger.Exchange(msg, addr)
 			if err1 != nil {
-				err = err1
+				err = fmt.Errorf("resolver %s failed: %w", addr, err1)
 				return
 			}
 			ch <- r

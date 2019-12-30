@@ -39,6 +39,7 @@ type Proxy struct {
 }
 
 type logger interface {
+	Print(...interface{})
 	Printf(string, ...interface{})
 	Record(net.IP, bool, uint16, string, ...string)
 	Close() error
@@ -146,7 +147,7 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		p.writeMsg(w, rr, false)
 		p.cache.Set(key, rr)
 	} else {
-		p.logger.Printf("resolver(s) failed: %s", err)
+		p.logger.Print(err)
 		dns.HandleFailed(w, r)
 	}
 }
