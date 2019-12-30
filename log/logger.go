@@ -26,7 +26,6 @@ type Logger struct {
 	queue chan Entry
 	db    *sql.Client
 	wg    sync.WaitGroup
-	done  chan bool
 	now   func() time.Time
 }
 
@@ -50,10 +49,6 @@ type Entry struct {
 // New creates a new logger, writing log output to writer w prefixed with prefix. Persisted logging behaviour is
 // controller by options.
 func New(w io.Writer, prefix string, options RecordOptions) (*Logger, error) {
-	return newLogger(w, prefix, options, time.Minute)
-}
-
-func newLogger(w io.Writer, prefix string, options RecordOptions, interval time.Duration) (*Logger, error) {
 	logger := &Logger{
 		Logger: log.New(w, prefix, 0),
 		queue:  make(chan Entry, 100),
@@ -68,38 +63,13 @@ func newLogger(w io.Writer, prefix string, options RecordOptions, interval time.
 		}
 	}
 	logger.wg.Add(1)
-	go logger.readQueue()
-	if options.TTL > 0 {
-		logger.wg.Add(1)
-		logger.done = make(chan bool)
-		go maintain(logger, options.TTL, interval)
-	}
+	go logger.readQueue(options.TTL)
 	return logger, nil
-}
-
-func maintain(logger *Logger, ttl, interval time.Duration) {
-	defer logger.wg.Done()
-	ticker := time.NewTicker(interval)
-	for {
-		select {
-		case <-logger.done:
-			ticker.Stop()
-			return
-		case <-ticker.C:
-			t := logger.now().Add(-ttl)
-			if err := logger.db.DeleteLogBefore(t); err != nil {
-				logger.Printf("error deleting log entries before %v: %s", t, err)
-			}
-		}
-	}
 }
 
 // Close consumes any outstanding log requests and closes the logger.
 func (l *Logger) Close() error {
 	close(l.queue)
-	if l.done != nil {
-		l.done <- true
-	}
 	l.wg.Wait()
 	return nil
 }
@@ -154,11 +124,17 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 	return entries, nil
 }
 
-func (l *Logger) readQueue() {
+func (l *Logger) readQueue(ttl time.Duration) {
 	defer l.wg.Done()
 	for e := range l.queue {
 		if err := l.db.WriteLog(e.Time, e.RemoteAddr, e.Hijacked, e.Qtype, e.Question, e.Answers...); err != nil {
 			l.Printf("write failed: %+v: %s", e, err)
+		}
+		if ttl > 0 {
+			t := l.now().Add(-ttl)
+			if err := l.db.DeleteLogBefore(t); err != nil {
+				l.Printf("deleting log entries before %v failed: %s", t, err)
+			}
 		}
 	}
 }

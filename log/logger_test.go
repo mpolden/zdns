@@ -104,11 +104,11 @@ func TestAnswerMerging(t *testing.T) {
 }
 
 func TestLogPruning(t *testing.T) {
-	logger, err := newLogger(os.Stderr, "test: ", RecordOptions{
+	logger, err := New(os.Stderr, "test: ", RecordOptions{
 		Mode:     ModeAll,
 		Database: ":memory:",
 		TTL:      time.Hour,
-	}, 10*time.Millisecond)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,8 +133,10 @@ func TestLogPruning(t *testing.T) {
 
 	// Advance time beyond log TTL
 	tt = tt.Add(time.Hour).Add(time.Second)
-	for len(entries) > 0 {
-		entries, err = logger.Get(1)
+	// Trigger pruning by recording another entry
+	logger.Record(net.IPv4(192, 0, 2, 100), false, 1, "2.example.com.", "192.0.2.2")
+	for len(entries) > 1 {
+		entries, err = logger.Get(2)
 		if err != nil {
 			t.Fatal(err)
 		}
