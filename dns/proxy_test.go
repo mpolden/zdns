@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,10 +37,23 @@ type response struct {
 	fail   bool
 }
 
-type testExchanger map[string]*response
+type testExchanger struct {
+	mu        sync.RWMutex
+	responses map[string]*response
+}
 
-func (e testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
-	r, ok := e[addr]
+func newTestExchanger() *testExchanger { return &testExchanger{responses: make(map[string]*response)} }
+
+func (e *testExchanger) setResponse(resolver string, response *response) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.responses[resolver] = response
+}
+
+func (e *testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	r, ok := e.responses[addr]
 	if !ok {
 		panic("no such resolver: " + addr)
 	}
@@ -148,7 +162,7 @@ func TestProxy(t *testing.T) {
 
 func TestProxyWithResolvers(t *testing.T) {
 	p := testProxy(t)
-	exchanger := make(testExchanger)
+	exchanger := newTestExchanger()
 	p.client = &dnsutil.Client{Exchanger: exchanger}
 	defer p.Close()
 	// No resolvers
@@ -161,11 +175,12 @@ func TestProxyWithResolvers(t *testing.T) {
 	m.Id = dns.Id()
 	m.SetQuestion("host1.", dns.TypeA)
 	m.Answer = reply.rr
-	exchanger["resolver1"] = &response{answer: &m}
+	response1 := &response{answer: &m}
+	exchanger.setResponse("resolver1", response1)
 	assertRR(t, p, &m, "192.0.2.1")
 
 	// First and only resolver fails
-	exchanger["resolver1"].fail = true
+	response1.fail = true
 	assertFailure(t, p, TypeA, "host1")
 
 	// First resolver fails, but second succeeds
@@ -175,18 +190,19 @@ func TestProxyWithResolvers(t *testing.T) {
 	m.Id = dns.Id()
 	m.SetQuestion("host1.", dns.TypeA)
 	m.Answer = reply.rr
-	exchanger["resolver2"] = &response{answer: &m}
+	response2 := &response{answer: &m}
+	exchanger.setResponse("resolver2", response2)
 	assertRR(t, p, &m, "192.0.2.2")
 
 	// All resolvers fail
-	exchanger["resolver2"].fail = true
+	response2.fail = true
 	assertFailure(t, p, TypeA, "host1")
 }
 
 func TestProxyWithCache(t *testing.T) {
 	p := testProxy(t)
 	p.cache = cache.New(10, nil)
-	exchanger := make(testExchanger)
+	exchanger := newTestExchanger()
 	p.client = &dnsutil.Client{Exchanger: exchanger}
 	p.client.Addresses = []string{"resolver1"}
 	defer p.Close()
@@ -196,7 +212,7 @@ func TestProxyWithCache(t *testing.T) {
 	m.Id = dns.Id()
 	m.SetQuestion("host1.", dns.TypeA)
 	m.Answer = reply.rr
-	exchanger["resolver1"] = &response{answer: &m}
+	exchanger.setResponse("resolver1", &response{answer: &m})
 	assertRR(t, p, &m, "192.0.2.1")
 
 	k := cache.NewKey("host1.", dns.TypeA, dns.ClassINET)

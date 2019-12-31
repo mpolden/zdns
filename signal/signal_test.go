@@ -3,6 +3,7 @@ package signal
 import (
 	"io/ioutil"
 	"os"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -11,18 +12,36 @@ import (
 )
 
 type reloaderCloser struct {
+	mu       sync.RWMutex
 	reloaded bool
 	closed   bool
 }
 
-func (rc *reloaderCloser) Reload() { rc.reloaded = true }
+func (rc *reloaderCloser) Reload() {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.reloaded = true
+}
 func (rc *reloaderCloser) Close() error {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
 	rc.closed = true
 	return nil
 }
-func (rc *reloaderCloser) isReloaded() bool { return rc.reloaded }
-func (rc *reloaderCloser) isClosed() bool   { return rc.closed }
+func (rc *reloaderCloser) isReloaded() bool {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	return rc.reloaded
+}
+func (rc *reloaderCloser) isClosed() bool {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	return rc.closed
+}
+
 func (rc *reloaderCloser) reset() {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
 	rc.reloaded = false
 	rc.closed = false
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,10 +13,19 @@ import (
 )
 
 type testExchanger struct {
+	mu     sync.RWMutex
 	answer *dns.Msg
 }
 
+func (e *testExchanger) setAnswer(answer *dns.Msg) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.answer = answer
+}
+
 func (e *testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	return e.answer, time.Second, nil
 }
 
@@ -61,10 +71,13 @@ func awaitExpiry(t *testing.T, i int, c *Cache, k uint64) {
 func awaitRefresh(t *testing.T, i int, c *Cache, k uint64, u time.Time) {
 	now := time.Now()
 	for { // Loop until CreatedAt of key k is after u
-		v, ok := c.getValue(k)
+		c.mu.RLock()
+		v, ok := c.values[k]
 		if ok && v.CreatedAt.After(u) {
+			c.mu.RUnlock()
 			break
 		}
+		c.mu.RUnlock()
 		time.Sleep(10 * time.Millisecond)
 		if time.Since(now) > 2*time.Second {
 			t.Fatalf("#%d: timed out waiting for refresh of key %d", i, k)
@@ -132,6 +145,7 @@ func TestCache(t *testing.T) {
 		if !tt.ok {
 			awaitExpiry(t, i, c, k)
 		}
+		c.mu.RLock()
 		if _, ok := c.values[k]; ok != tt.ok {
 			t.Errorf("#%d: values[%d] = %t, want %t", i, k, ok, tt.ok)
 		}
@@ -142,6 +156,7 @@ func TestCache(t *testing.T) {
 				break
 			}
 		}
+		c.mu.RUnlock()
 		if (keyIdx != -1) != tt.ok {
 			t.Errorf("#%d: keys[%d] = %d, found expired key", i, keyIdx, k)
 		}
@@ -266,7 +281,7 @@ func TestCachePrefetch(t *testing.T) {
 		copy := msg.Copy()
 		copy.Answer[0].(*dns.A).A = net.ParseIP(tt.refreshAnswer)
 		copy.Answer[0].(*dns.A).Hdr.Ttl = uint32(tt.refreshTTL.Seconds())
-		exchanger.answer = copy
+		exchanger.setAnswer(copy)
 		c.now = func() time.Time { return now }
 
 		var key uint64 = 1
