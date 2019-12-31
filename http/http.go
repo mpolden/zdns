@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	_ "net/http/pprof" // Registers debug handlers as a side effect.
 	"strconv"
 	"time"
 

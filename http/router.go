@@ -6,6 +6,7 @@ import (
 )
 
 type router struct {
+	mux    *http.ServeMux
 	routes []*route
 }
 
@@ -39,7 +40,7 @@ func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func newRouter() *router { return &router{} }
+func newRouter() *router { return &router{mux: http.DefaultServeMux} }
 
 func notFoundHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
 	return nil, &httpError{
@@ -59,7 +60,7 @@ func (r *router) route(method, path string, handler appHandler) *route {
 }
 
 func (r *router) handler() http.Handler {
-	return appHandler(func(w http.ResponseWriter, req *http.Request) (interface{}, *httpError) {
+	appHandler := appHandler(func(w http.ResponseWriter, req *http.Request) (interface{}, *httpError) {
 		for _, route := range r.routes {
 			if route.match(req) {
 				return route.handler(w, req)
@@ -67,6 +68,8 @@ func (r *router) handler() http.Handler {
 		}
 		return notFoundHandler(w, req)
 	})
+	r.mux.Handle("/", appHandler)
+	return r.mux
 }
 
 func (r *route) match(req *http.Request) bool {
