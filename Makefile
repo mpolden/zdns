@@ -5,7 +5,11 @@ XBIN := $(XGOOS)_$(XGOARCH)/zdns
 all: lint test install
 
 test:
+ifdef TRAVIS
+	go test -race ./...
+else
 	go test ./...
+endif
 
 vet:
 	go vet ./...
