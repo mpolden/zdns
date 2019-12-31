@@ -80,8 +80,8 @@ func (c *Cache) Get(key uint64) (*dns.Msg, bool) {
 
 func (c *Cache) getValue(key uint64) (*Value, bool) {
 	c.mu.RLock()
+	defer c.mu.RUnlock()
 	v, ok := c.values[key]
-	c.mu.RUnlock()
 	if !ok {
 		return nil, false
 	}
