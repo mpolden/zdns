@@ -1,7 +1,6 @@
 package dnsutil
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -47,13 +46,13 @@ func (c *Client) Exchange(msg *dns.Msg) (*dns.Msg, error) {
 	ch := make(chan *dns.Msg, len(c.Addresses))
 	var wg sync.WaitGroup
 	wg.Add(len(c.Addresses))
-	err := errors.New("addr is empty")
+	errs := make(chan error, len(c.Addresses))
 	for _, a := range c.Addresses {
 		go func(addr string) {
 			defer wg.Done()
-			r, _, err1 := c.Exchanger.Exchange(msg, addr)
-			if err1 != nil {
-				err = fmt.Errorf("resolver %s failed: %w", addr, err1)
+			r, _, err := c.Exchanger.Exchange(msg, addr)
+			if err != nil {
+				errs <- fmt.Errorf("resolver %s failed: %w", addr, err)
 				return
 			}
 			ch <- r
@@ -62,10 +61,15 @@ func (c *Client) Exchange(msg *dns.Msg) (*dns.Msg, error) {
 	go func() {
 		wg.Wait()
 		done <- true
+		close(errs)
 	}()
 	for {
 		select {
 		case <-done:
+			err := <-errs
+			if err == nil {
+				err = fmt.Errorf("addresses is empty")
+			}
 			return nil, err
 		case rr := <-ch:
 			return rr, nil
