@@ -87,7 +87,7 @@ func (c *Cache) getValue(key uint64) (*Value, bool) {
 	}
 	if c.isExpired(v) {
 		if !c.prefetch() {
-			go c.evict(key)
+			go c.evictWithLock(key)
 			return nil, false
 		}
 		// Refresh and return a stale value
@@ -167,9 +167,13 @@ func (c *Cache) refresh(key uint64, old *dns.Msg) {
 	}
 }
 
-func (c *Cache) evict(key uint64) {
+func (c *Cache) evictWithLock(key uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.evict(key)
+}
+
+func (c *Cache) evict(key uint64) {
 	delete(c.values, key)
 	var keys []uint64
 	for _, k := range c.keys {
