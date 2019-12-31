@@ -58,6 +58,20 @@ func awaitExpiry(t *testing.T, c *Cache, k uint64) {
 	}
 }
 
+func awaitRefresh(t *testing.T, c *Cache, k uint64, u time.Time) {
+	now := time.Now()
+	for { // Loop until CreatedAt of key k is after u
+		v, ok := c.getValue(k)
+		if ok && v.CreatedAt.After(u) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+		if time.Since(now) > 2*time.Second {
+			t.Fatalf("timed out waiting for refresh of key %d", k)
+		}
+	}
+}
+
 func TestNewKey(t *testing.T) {
 	var tests = []struct {
 		name          string
@@ -226,38 +240,44 @@ func TestCachePrefetch(t *testing.T) {
 	exchanger := testExchanger{}
 	client := &dnsutil.Client{Exchanger: &exchanger, Addresses: []string{"resolver"}}
 	now := time.Now()
-	nowFn := func() time.Time { return now }
-	c := newCache(10, client, nowFn)
+	c := newCache(10, client, func() time.Time { return now })
 
-	var key uint64 = 1
-	ip := net.ParseIP("192.0.2.1")
-	response := newA("r1.", 60, ip)
-	exchanger.answer = response
-	c.Set(key, response)
-
-	// Not refreshed yet
-	c.now = func() time.Time { return now.Add(30 * time.Second) }
-	c.refresh(key, response)
-	rr, _ := c.Get(key)
-	answers := dnsutil.Answers(rr)
-	if got, want := answers[0], ip.String(); got != want {
-		t.Errorf("got ip %s, want %s", got, want)
+	var tests = []struct {
+		initialAnswer string
+		refreshAnswer string
+		ttl           time.Duration
+		queryTime     time.Time
+		answer        string
+		ok            bool
+		awaitRefresh  bool
+	}{
+		// Serves cached value before expiry
+		{"192.0.2.1", "192.0.2.42", time.Minute, now.Add(30 * time.Second), "192.0.2.1", true, true},
+		// Serves stale cached value after expiry and before refresh happens
+		{"192.0.2.1", "192.0.2.42", time.Minute, now.Add(61 * time.Second), "192.0.2.1", true, false},
+		// Serves refreshed value after expiry and refresh
+		{"192.0.2.1", "192.0.2.42", time.Minute, now.Add(61 * time.Second), "192.0.2.42", true, true},
 	}
+	for i, tt := range tests {
+		msg := newA("example.com.", uint32(tt.ttl.Seconds()), net.ParseIP(tt.initialAnswer))
+		copy := msg.Copy()
+		copy.Answer[0].(*dns.A).A = net.ParseIP(tt.refreshAnswer)
+		exchanger.answer = copy
+		c.now = func() time.Time { return now }
 
-	// Expiry of cached value is ignored as prefetching is enabled
-	c.now = func() time.Time { return now.Add(61 * time.Second) }
-	if _, ok := c.Get(key); !ok {
-		t.Errorf("Get(%d) = (_, %t), want (_, %t)", key, ok, !ok)
-	}
+		var key uint64 = 1
+		c.Set(key, msg)
+		c.now = func() time.Time { return tt.queryTime }
+		v, ok := c.getValue(key)
 
-	// Refresh expired entry
-	ip = net.ParseIP("192.0.2.2")
-	exchanger.answer = newA("r1.", 60, ip)
-	c.refresh(key, response)
-	rr, _ = c.Get(key)
-	answers = dnsutil.Answers(rr)
-	if got, want := answers[0], ip.String(); got != want {
-		t.Errorf("got ip %s, want %s", got, want)
+		if tt.awaitRefresh && c.isExpired(v) {
+			awaitRefresh(t, c, key, v.CreatedAt)
+		}
+
+		answers := dnsutil.Answers(v.msg)
+		if answers[0] != tt.answer || ok != tt.ok {
+			t.Errorf("#%d: Get(%d) = (%q, %t), want (%q, %t)", i, key, answers[0], ok, tt.answer, tt.ok)
+		}
 	}
 }
 
