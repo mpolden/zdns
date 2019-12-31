@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
@@ -36,6 +37,7 @@ type Proxy struct {
 	logger  logger
 	server  *dns.Server
 	client  *dnsutil.Client
+	mu      sync.RWMutex
 }
 
 type logger interface {
@@ -109,6 +111,8 @@ func (p *Proxy) reply(r *dns.Msg) *dns.Msg {
 
 // Close closes the proxy.
 func (p *Proxy) Close() error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	if p.server != nil {
 		return p.server.Shutdown()
 	}
@@ -154,6 +158,8 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 // ListenAndServe listens on the network address addr and uses the server to process requests.
 func (p *Proxy) ListenAndServe(addr string, network string) error {
+	p.mu.Lock()
 	p.server = &dns.Server{Addr: addr, Net: network, Handler: p}
+	p.mu.Unlock()
 	return p.server.ListenAndServe()
 }
