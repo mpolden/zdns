@@ -3,10 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
-	"sync"
-	"syscall"
 	"testing"
-	"time"
 )
 
 func tempFile(t *testing.T, s string) (string, error) {
@@ -40,21 +37,8 @@ hijack_mode = "zero"
 	}
 	defer os.Remove(f)
 
-	sig := make(chan os.Signal, 1)
-	c := newCli(os.Stderr, []string{"-f", f}, f, sig)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		c.run()
-	}()
-	ts := time.Now()
-	for c.started < 2 {
-		time.Sleep(10 * time.Millisecond) // Wait for servers to start
-		if time.Since(ts) > 2*time.Second {
-			t.Fatal("timed out waiting for servers to start")
-		}
+	_, err = newCli(ioutil.Discard, []string{"-f", f}, f, make(chan os.Signal, 1))
+	if err != nil {
+		t.Fatal(err)
 	}
-	sig <- syscall.SIGTERM
-	wg.Wait()
 }

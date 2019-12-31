@@ -28,7 +28,6 @@ type server interface{ ListenAndServe() error }
 
 type cli struct {
 	servers []server
-	started int
 	wg      sync.WaitGroup
 }
 
@@ -59,18 +58,17 @@ func (c *cli) runServer(server server) {
 			fatal(err)
 		}
 	}()
-	c.started++
 }
 
-func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal) *cli {
-	f := flag.CommandLine
-	f.SetOutput(out)
-	confFile := f.String("f", configFile, "config file `path`")
-	help := f.Bool("h", false, "print usage")
-	f.Parse(args)
+func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal) (*cli, error) {
+	cl := flag.CommandLine
+	cl.SetOutput(out)
+	confFile := cl.String("f", configFile, "config file `path`")
+	help := cl.Bool("h", false, "print usage")
+	cl.Parse(args)
 	if *help {
-		f.Usage()
-		return nil
+		cl.Usage()
+		return nil, fmt.Errorf("usage option given")
 	}
 
 	// Config
@@ -116,19 +114,19 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 		sigHandler.OnClose(httpSrv)
 		servers = append(servers, httpSrv)
 	}
-	return &cli{servers: servers}
+	return &cli{servers: servers}, nil
 }
 
 func (c *cli) run() {
-	for _, srv := range c.servers {
-		c.runServer(srv)
+	for _, s := range c.servers {
+		c.runServer(s)
 	}
 	c.wg.Wait()
 }
 
 func main() {
-	c := newCli(os.Stderr, os.Args[1:], defaultConfigFile(), make(chan os.Signal, 1))
-	if c != nil {
+	c, err := newCli(os.Stderr, os.Args[1:], defaultConfigFile(), make(chan os.Signal, 1))
+	if err == nil {
 		c.run()
 	}
 }
