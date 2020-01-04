@@ -33,7 +33,7 @@ install:
 	go install ./...
 
 xinstall:
-# TODO: Switch to -static flags once 1.14 is released.
+# TODO: Switch to -static flag once 1.14 is released.
 # https://github.com/golang/go/issues/26492
 	env GOOS=$(XGOOS) GOARCH=$(XGOARCH) CGO_ENABLED=1 \
 CC=x86_64-linux-musl-gcc go install -ldflags '-extldflags "-static"' ./...
