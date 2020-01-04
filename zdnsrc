@@ -49,7 +49,7 @@
 
 # Configures the interval when each remote hosts list should be refreshed.
 #
-# hosts_refresh_interval = "24h"
+# hosts_refresh_interval = "48h"
 
 # Path to the log database. Configuring a path here will enable logging of DNS
 # requests to a SQLite database.
