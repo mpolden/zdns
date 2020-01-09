@@ -349,6 +349,15 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 
 	// Last query refreshes key
 	awaitRefresh(t, 0, c, key, c.now().Add(-time.Second))
+	keyExists := false
+	for _, k := range c.keys {
+		if k == key {
+			keyExists = true
+		}
+	}
+	if !keyExists {
+		t.Errorf("expected cache keys to contain %d", key)
+	}
 }
 
 func BenchmarkNewKey(b *testing.B) {

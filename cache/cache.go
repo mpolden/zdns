@@ -122,21 +122,23 @@ func (c *Cache) List(n int) []Value {
 //
 // Setting a new key in a cache that has reached its capacity will evict values in a FIFO order.
 func (c *Cache) Set(key uint64, msg *dns.Msg) {
-	if c.capacity == 0 {
-		return
-	}
-	if !canCache(msg) {
-		return
-	}
-	now := c.now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.set(key, msg)
+}
+
+func (c *Cache) set(key uint64, msg *dns.Msg) bool {
+	if c.capacity == 0 || !canCache(msg) {
+		return false
+	}
+	now := c.now()
 	if len(c.values) == c.capacity && c.capacity > 0 {
 		delete(c.values, c.keys[0])
 		c.keys = c.keys[1:]
 	}
 	c.values[key] = &Value{CreatedAt: now, msg: msg}
-	c.keys = append(c.keys, key)
+	c.appendKey(key)
+	return true
 }
 
 // Reset removes all values contained in cache c.
@@ -159,9 +161,7 @@ func (c *Cache) refresh(key uint64, old *dns.Msg) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if canCache(r) {
-		c.values[key] = &Value{CreatedAt: c.now(), msg: r}
-	} else {
+	if !c.set(key, r) {
 		c.evict(key)
 	}
 }
@@ -174,6 +174,15 @@ func (c *Cache) evictWithLock(key uint64) {
 
 func (c *Cache) evict(key uint64) {
 	delete(c.values, key)
+	c.removeKey(key)
+}
+
+func (c *Cache) appendKey(key uint64) {
+	c.removeKey(key)
+	c.keys = append(c.keys, key)
+}
+
+func (c *Cache) removeKey(key uint64) {
 	var keys []uint64
 	for _, k := range c.keys {
 		if k == key {
