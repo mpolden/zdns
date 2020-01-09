@@ -13,20 +13,31 @@ import (
 )
 
 type testExchanger struct {
-	mu     sync.RWMutex
-	answer *dns.Msg
+	mu      sync.RWMutex
+	answers chan *dns.Msg
 }
+
+func newTestExchanger() *testExchanger { return &testExchanger{answers: make(chan *dns.Msg, 100)} }
 
 func (e *testExchanger) setAnswer(answer *dns.Msg) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.answer = answer
+	e.answers <- answer
+}
+
+func (e *testExchanger) reset() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.answers = make(chan *dns.Msg, 100)
 }
 
 func (e *testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return e.answer, time.Second, nil
+	if len(e.answers) == 0 {
+		return nil, 0, fmt.Errorf("no answer pending")
+	}
+	return <-e.answers, time.Second, nil
 }
 
 func newA(name string, ttl uint32, ipAddr ...net.IP) *dns.Msg {
@@ -252,8 +263,8 @@ func TestReset(t *testing.T) {
 }
 
 func TestCachePrefetch(t *testing.T) {
-	exchanger := testExchanger{}
-	client := &dnsutil.Client{Exchanger: &exchanger, Addresses: []string{"resolver"}}
+	exchanger := newTestExchanger()
+	client := &dnsutil.Client{Exchanger: exchanger, Addresses: []string{"resolver"}}
 	now := time.Now()
 	c := newCache(10, client, func() time.Time { return now })
 
@@ -281,6 +292,7 @@ func TestCachePrefetch(t *testing.T) {
 		copy := msg.Copy()
 		copy.Answer[0].(*dns.A).A = net.ParseIP(tt.refreshAnswer)
 		copy.Answer[0].(*dns.A).Hdr.Ttl = uint32(tt.refreshTTL.Seconds())
+		exchanger.reset()
 		exchanger.setAnswer(copy)
 		c.now = func() time.Time { return now }
 
@@ -295,6 +307,7 @@ func TestCachePrefetch(t *testing.T) {
 				ok = false
 			} else if c.isExpired(v) {
 				awaitRefresh(t, i, c, key, v.CreatedAt)
+				v, ok = c.getValue(key)
 			}
 		}
 
@@ -307,6 +320,35 @@ func TestCachePrefetch(t *testing.T) {
 			t.Errorf("#%d: Get(%d) = (%q, _), want (%q, _)", i, key, answers[0], tt.answer)
 		}
 	}
+}
+
+func TestCacheEvictAndUpdate(t *testing.T) {
+	exchanger := newTestExchanger()
+	client := &dnsutil.Client{Exchanger: exchanger, Addresses: []string{"resolver"}}
+	now := time.Now()
+	c := newCache(10, client, func() time.Time { return now })
+
+	msg := newA("example.com.", 60, net.ParseIP("192.0.2.1"))
+	var key uint64 = 1
+	c.Set(key, msg)
+
+	// Initial prefetched answer can no longer be cached
+	copy := msg.Copy()
+	copy.Answer[0].(*dns.A).Hdr.Ttl = 0
+	exchanger.setAnswer(copy)
+
+	// Advance time so that msg is now considered expired. Query to trigger prefetch
+	c.now = func() time.Time { return now.Add(61 * time.Second) }
+	c.Get(key)
+
+	// Query again, causing another prefetch with a non-zero TTL
+	copy = msg.Copy()
+	copy.Answer[0].(*dns.A).Hdr.Ttl = 30
+	exchanger.setAnswer(copy)
+	c.Get(key)
+
+	// Last query refreshes key
+	awaitRefresh(t, 0, c, key, c.now().Add(-time.Second))
 }
 
 func BenchmarkNewKey(b *testing.B) {

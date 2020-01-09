@@ -160,8 +160,7 @@ func (c *Cache) refresh(key uint64, old *dns.Msg) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if canCache(r) {
-		c.values[key].CreatedAt = c.now()
-		c.values[key].msg = r
+		c.values[key] = &Value{CreatedAt: c.now(), msg: r}
 	} else {
 		c.evict(key)
 	}
