@@ -42,6 +42,7 @@ _zdns_ uses the [TOML](https://github.com/toml-lang/toml) configuration format
 and expects to find its configuration file in `~/.zdnsrc` by default.
 
 See [zdnsrc](zdnsrc) for an example configuration file.
+[zdns.service](zdns.service) contains an example systemd service file.
 
 ## Usage
 
