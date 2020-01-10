@@ -18,7 +18,7 @@ import (
 type Cache struct {
 	client   *dnsutil.Client
 	capacity int
-	values   map[uint64]*Value
+	values   map[uint64]Value
 	keys     []uint64
 	mu       sync.RWMutex
 	now      func() time.Time
@@ -97,7 +97,7 @@ func newCache(capacity int, client *dnsutil.Client, now func() time.Time) *Cache
 		client:   client,
 		now:      now,
 		capacity: capacity,
-		values:   make(map[uint64]*Value, capacity),
+		values:   make(map[uint64]Value, capacity),
 	}
 }
 
@@ -126,7 +126,7 @@ func (c *Cache) getValue(key uint64) (*Value, bool) {
 	if !ok {
 		return nil, false
 	}
-	if c.isExpired(v) {
+	if c.isExpired(&v) {
 		if !c.prefetch() {
 			go c.evictWithLock(key)
 			return nil, false
@@ -134,7 +134,7 @@ func (c *Cache) getValue(key uint64) (*Value, bool) {
 		// Refresh and return a stale value
 		go c.refresh(key, v.msg)
 	}
-	return v, true
+	return &v, true
 }
 
 // List returns the n most recent values in cache c.
@@ -177,7 +177,8 @@ func (c *Cache) set(key uint64, msg *dns.Msg) bool {
 		delete(c.values, c.keys[0])
 		c.keys = c.keys[1:]
 	}
-	c.values[key] = &Value{CreatedAt: now, msg: msg}
+	value := Value{CreatedAt: now, msg: msg}
+	c.values[key] = value
 	c.appendKey(key)
 	return true
 }
@@ -186,7 +187,7 @@ func (c *Cache) set(key uint64, msg *dns.Msg) bool {
 func (c *Cache) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.values = make(map[uint64]*Value)
+	c.values = make(map[uint64]Value)
 	c.keys = nil
 }
 
