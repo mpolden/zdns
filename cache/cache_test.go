@@ -134,13 +134,13 @@ func TestCache(t *testing.T) {
 		ok        bool
 		value     *Value
 	}{
-		{msg, now, true, &Value{CreatedAt: now, msg: msg}},                       // Not expired when query time == create time
-		{msg, now.Add(30 * time.Second), true, &Value{CreatedAt: now, msg: msg}}, // Not expired when below TTL
-		{msg, now.Add(60 * time.Second), true, &Value{CreatedAt: now, msg: msg}}, // Not expired until TTL exceeds
-		{msgNameError, now, true, &Value{CreatedAt: now, msg: msgNameError}},     // NXDOMAIN is cached
-		{msg, now.Add(61 * time.Second), false, nil},                             // Expired due to TTL exceeded
-		{msgWithZeroTTL, now, false, nil},                                        // 0 TTL is not cached
-		{msgFailure, now, false, nil},                                            // Non-cacheable rcode
+		{msg, now, true, &Value{Key: 16316346957082771326, CreatedAt: now, msg: msg}},                       // Not expired when query time == create time
+		{msg, now.Add(30 * time.Second), true, &Value{Key: 16316346957082771326, CreatedAt: now, msg: msg}}, // Not expired when below TTL
+		{msg, now.Add(60 * time.Second), true, &Value{Key: 16316346957082771326, CreatedAt: now, msg: msg}}, // Not expired until TTL exceeds
+		{msgNameError, now, true, &Value{Key: 7258598034460334943, CreatedAt: now, msg: msgNameError}},      // NXDOMAIN is cached
+		{msg, now.Add(61 * time.Second), false, nil},                                                        // Expired due to TTL exceeded
+		{msgWithZeroTTL, now, false, nil},                                                                   // 0 TTL is not cached
+		{msgFailure, now, false, nil},                                                                       // Non-cacheable rcode
 	}
 	for i, tt := range tests {
 		c.now = nowFn
@@ -362,6 +362,7 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 
 func TestPackValue(t *testing.T) {
 	v := Value{
+		Key:       42,
 		CreatedAt: time.Now().Truncate(time.Second),
 		msg:       newA("example.com.", 60, net.ParseIP("192.0.2.1")),
 	}
@@ -373,10 +374,13 @@ func TestPackValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := unpacked.CreatedAt, v.CreatedAt; !want.Equal(got) {
+	if got, want := unpacked.Key, v.Key; got != want {
+		t.Errorf("Key = %d, want %d", got, want)
+	}
+	if got, want := unpacked.CreatedAt, v.CreatedAt; !got.Equal(want) {
 		t.Errorf("CreatedAt = %s, want %s", got, want)
 	}
-	if got, want := unpacked.msg.String(), v.msg.String(); want != got {
+	if got, want := unpacked.msg.String(), v.msg.String(); got != want {
 		t.Errorf("msg = %s, want %s", got, want)
 	}
 }

@@ -26,6 +26,7 @@ type Cache struct {
 
 // Value wraps a DNS message stored in the cache.
 type Value struct {
+	Key       uint64
 	CreatedAt time.Time
 	msg       *dns.Msg
 }
@@ -48,6 +49,8 @@ func (v *Value) TTL() time.Duration { return dnsutil.MinTTL(v.msg) }
 // Pack returns a string representation of Value v.
 func (v *Value) Pack() (string, error) {
 	var sb strings.Builder
+	sb.WriteString(strconv.FormatUint(v.Key, 10))
+	sb.WriteString(" ")
 	sb.WriteString(strconv.FormatInt(v.CreatedAt.Unix(), 10))
 	sb.WriteString(" ")
 	data, err := v.msg.Pack()
@@ -61,14 +64,18 @@ func (v *Value) Pack() (string, error) {
 // Unpack converts a string value into a Value type.
 func Unpack(value string) (Value, error) {
 	fields := strings.Fields(value)
-	if len(fields) < 2 {
+	if len(fields) < 3 {
 		return Value{}, fmt.Errorf("invalid number of fields: %q", value)
 	}
-	secs, err := strconv.ParseInt(fields[0], 10, 64)
+	key, err := strconv.ParseUint(fields[0], 10, 64)
 	if err != nil {
 		return Value{}, err
 	}
-	data, err := hex.DecodeString(fields[1])
+	secs, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil {
+		return Value{}, err
+	}
+	data, err := hex.DecodeString(fields[2])
 	if err != nil {
 		return Value{}, err
 	}
@@ -77,6 +84,7 @@ func Unpack(value string) (Value, error) {
 		return Value{}, err
 	}
 	return Value{
+		Key:       key,
 		CreatedAt: time.Unix(secs, 0),
 		msg:       msg,
 	}, nil
@@ -169,15 +177,17 @@ func (c *Cache) Set(key uint64, msg *dns.Msg) {
 }
 
 func (c *Cache) set(key uint64, msg *dns.Msg) bool {
-	if c.capacity == 0 || !canCache(msg) {
+	return c.setValue(key, Value{Key: key, CreatedAt: c.now(), msg: msg})
+}
+
+func (c *Cache) setValue(key uint64, value Value) bool {
+	if c.capacity == 0 || !canCache(value.msg) {
 		return false
 	}
-	now := c.now()
 	if len(c.values) == c.capacity && c.capacity > 0 {
 		delete(c.values, c.keys[0])
 		c.keys = c.keys[1:]
 	}
-	value := Value{CreatedAt: now, msg: msg}
 	c.values[key] = value
 	c.appendKey(key)
 	return true
