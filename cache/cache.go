@@ -2,7 +2,11 @@ package cache
 
 import (
 	"encoding/binary"
+	"encoding/hex"
+	"fmt"
 	"hash/fnv"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +44,43 @@ func (v *Value) Answers() []string { return dnsutil.Answers(v.msg) }
 
 // TTL returns the time to live of the cached value v.
 func (v *Value) TTL() time.Duration { return dnsutil.MinTTL(v.msg) }
+
+// Pack returns a string representation of Value v.
+func (v *Value) Pack() (string, error) {
+	var sb strings.Builder
+	sb.WriteString(strconv.FormatInt(v.CreatedAt.Unix(), 10))
+	sb.WriteString(" ")
+	data, err := v.msg.Pack()
+	if err != nil {
+		return "", err
+	}
+	sb.WriteString(hex.EncodeToString(data))
+	return sb.String(), nil
+}
+
+// Unpack converts a string value into a Value type.
+func Unpack(value string) (Value, error) {
+	fields := strings.Fields(value)
+	if len(fields) < 2 {
+		return Value{}, fmt.Errorf("invalid number of fields: %q", value)
+	}
+	secs, err := strconv.ParseInt(fields[0], 10, 64)
+	if err != nil {
+		return Value{}, err
+	}
+	data, err := hex.DecodeString(fields[1])
+	if err != nil {
+		return Value{}, err
+	}
+	msg := &dns.Msg{}
+	if err := msg.Unpack(data); err != nil {
+		return Value{}, err
+	}
+	return Value{
+		CreatedAt: time.Unix(secs, 0),
+		msg:       msg,
+	}, nil
+}
 
 // New creates a new cache of given capacity.
 //

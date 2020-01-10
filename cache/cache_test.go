@@ -360,6 +360,27 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 	}
 }
 
+func TestPackValue(t *testing.T) {
+	v := Value{
+		CreatedAt: time.Now().Truncate(time.Second),
+		msg:       newA("example.com.", 60, net.ParseIP("192.0.2.1")),
+	}
+	packed, err := v.Pack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	unpacked, err := Unpack(packed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := unpacked.CreatedAt, v.CreatedAt; !want.Equal(got) {
+		t.Errorf("CreatedAt = %s, want %s", got, want)
+	}
+	if got, want := unpacked.msg.String(), v.msg.String(); want != got {
+		t.Errorf("msg = %s, want %s", got, want)
+	}
+}
+
 func BenchmarkNewKey(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		NewKey("key", 1, 1)
