@@ -336,15 +336,15 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 	copy := msg.Copy()
 	copy.Answer[0].(*dns.A).Hdr.Ttl = 0
 	exchanger.setAnswer(copy)
+	copy = msg.Copy()
+	copy.Answer[0].(*dns.A).Hdr.Ttl = 30
+	exchanger.setAnswer(copy)
 
 	// Advance time so that msg is now considered expired. Query to trigger prefetch
 	c.now = func() time.Time { return now.Add(61 * time.Second) }
 	c.Get(key)
 
 	// Query again, causing another prefetch with a non-zero TTL
-	copy = msg.Copy()
-	copy.Answer[0].(*dns.A).Hdr.Ttl = 30
-	exchanger.setAnswer(copy)
 	c.Get(key)
 
 	// Last query refreshes key

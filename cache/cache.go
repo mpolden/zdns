@@ -152,6 +152,8 @@ func (c *Cache) Reset() {
 func (c *Cache) prefetch() bool { return c.client != nil }
 
 func (c *Cache) refresh(key uint64, old *dns.Msg) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	q := old.Question[0]
 	msg := dns.Msg{}
 	msg.SetQuestion(q.Name, q.Qtype)
@@ -159,8 +161,6 @@ func (c *Cache) refresh(key uint64, old *dns.Msg) {
 	if err != nil {
 		return // Retry on next request
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	if !c.set(key, r) {
 		c.evict(key)
 	}
