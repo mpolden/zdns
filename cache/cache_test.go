@@ -40,6 +40,29 @@ func (e *testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Dura
 	return <-e.answers, time.Second, nil
 }
 
+type testBackend struct {
+	values []Value
+}
+
+func (b *testBackend) Set(key uint32, value Value) {
+	b.values = append(b.values, value)
+}
+
+func (b *testBackend) Evict(key uint32) {
+	var values []Value
+	for _, v := range b.values {
+		if v.Key == key {
+			continue
+		}
+		values = append(values, v)
+	}
+	b.values = values
+}
+
+func (b *testBackend) Reset() { b.values = nil }
+
+func (b *testBackend) Read() []Value { return b.values }
+
 func newA(name string, ttl uint32, ipAddr ...net.IP) *dns.Msg {
 	m := dns.Msg{}
 	m.Id = dns.Id()
@@ -127,7 +150,7 @@ func TestCache(t *testing.T) {
 
 	now := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
 	nowFn := func() time.Time { return now }
-	c := newCache(100, nil, nowFn)
+	c := newCache(100, nil, &defaultBackend{}, nowFn)
 	var tests = []struct {
 		msg       *dns.Msg
 		queriedAt time.Time
@@ -266,7 +289,7 @@ func TestCachePrefetch(t *testing.T) {
 	exchanger := newTestExchanger()
 	client := &dnsutil.Client{Exchanger: exchanger, Addresses: []string{"resolver"}}
 	now := time.Now()
-	c := newCache(10, client, func() time.Time { return now })
+	c := newCache(10, client, &defaultBackend{}, func() time.Time { return now })
 
 	var tests = []struct {
 		initialAnswer string
@@ -326,7 +349,7 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 	exchanger := newTestExchanger()
 	client := &dnsutil.Client{Exchanger: exchanger, Addresses: []string{"resolver"}}
 	now := time.Now()
-	c := newCache(10, client, func() time.Time { return now })
+	c := newCache(10, client, &defaultBackend{}, func() time.Time { return now })
 
 	msg := newA("example.com.", 60, net.ParseIP("192.0.2.1"))
 	var key uint32 = 1
@@ -382,6 +405,51 @@ func TestPackValue(t *testing.T) {
 	}
 	if got, want := unpacked.msg.String(), v.msg.String(); got != want {
 		t.Errorf("msg = %s, want %s", got, want)
+	}
+}
+
+func TestCacheWithBackend(t *testing.T) {
+	var tests = []struct {
+		capacity    int
+		backendSize int
+		cacheSize   int
+	}{
+		{0, 0, 0},
+		{0, 1, 0},
+		{1, 0, 0},
+		{1, 1, 1},
+		{1, 2, 1},
+		{2, 1, 1},
+		{2, 2, 2},
+		{3, 2, 2},
+	}
+	for i, tt := range tests {
+		backend := &testBackend{}
+		for j := 0; j < tt.backendSize; j++ {
+			v := Value{
+				Key:       uint32(j),
+				CreatedAt: time.Now(),
+				msg:       newA("example.com.", 60, net.ParseIP("192.0.2.1")),
+			}
+			backend.Set(v.Key, v)
+		}
+		c := NewWithBackend(tt.capacity, nil, backend)
+		if got, want := len(c.values), tt.cacheSize; got != want {
+			t.Errorf("#%d: len(values) = %d, want %d", i, got, want)
+		}
+		if tt.backendSize > tt.capacity {
+			if got, want := len(backend.Read()), tt.capacity; got != want {
+				t.Errorf("#%d: len(backend.Read()) = %d, want %d", i, got, want)
+			}
+		}
+		if tt.capacity == tt.backendSize {
+			// Adding a new entry to a cache at capacity removes the oldest from backend
+			msg := newA("example.com.", 60, net.ParseIP("192.0.2.1"))
+			c.Set(42, msg)
+			if got, want := len(backend.Read()), tt.capacity; got != want {
+				t.Errorf("#%d: len(backend.Read()) = %d, want %d", i, got, want)
+			}
+		}
 	}
 }
 

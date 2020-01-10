@@ -14,9 +14,25 @@ import (
 	"github.com/mpolden/zdns/dns/dnsutil"
 )
 
+// Backend is the interface for a persistent cache backend.
+type Backend interface {
+	Set(key uint32, value Value)
+	Evict(key uint32)
+	Read() []Value
+	Reset()
+}
+
+type defaultBackend struct{}
+
+func (b *defaultBackend) Set(uint32, Value) {}
+func (b *defaultBackend) Evict(uint32)      {}
+func (b *defaultBackend) Read() []Value     { return nil }
+func (b *defaultBackend) Reset()            {}
+
 // Cache is a cache of DNS messages.
 type Cache struct {
 	client   *dnsutil.Client
+	backend  Backend
 	capacity int
 	values   map[uint32]Value
 	keys     []uint32
@@ -93,20 +109,29 @@ func Unpack(value string) (Value, error) {
 // New creates a new cache of given capacity.
 //
 // If client is non-nil, the cache will prefetch expired entries in an effort to serve results faster.
+// If backend is non-nil, the cache will use it to persist cache entries.
 func New(capacity int, client *dnsutil.Client) *Cache {
-	return newCache(capacity, client, time.Now)
+	return NewWithBackend(capacity, client, &defaultBackend{})
 }
 
-func newCache(capacity int, client *dnsutil.Client, now func() time.Time) *Cache {
+// NewWithBackend creates a new cache that forwards entries to backend.
+func NewWithBackend(capacity int, client *dnsutil.Client, backend Backend) *Cache {
+	return newCache(capacity, client, backend, time.Now)
+}
+
+func newCache(capacity int, client *dnsutil.Client, backend Backend, now func() time.Time) *Cache {
 	if capacity < 0 {
 		capacity = 0
 	}
-	return &Cache{
+	c := &Cache{
 		client:   client,
+		backend:  &defaultBackend{},
 		now:      now,
 		capacity: capacity,
 		values:   make(map[uint32]Value, capacity),
 	}
+	c.load(backend)
+	return c
 }
 
 // NewKey creates a new cache key for the DNS name, qtype and qclass
@@ -116,6 +141,29 @@ func NewKey(name string, qtype, qclass uint16) uint32 {
 	binary.Write(h, binary.BigEndian, qtype)
 	binary.Write(h, binary.BigEndian, qclass)
 	return h.Sum32()
+}
+
+func (c *Cache) load(backend Backend) {
+	if c.capacity == 0 {
+		backend.Reset()
+		return
+	}
+	values := backend.Read()
+	n := 0
+	if c.capacity < len(values) {
+		n = c.capacity
+	}
+	// Add the last n values from backend
+	for _, v := range values[n:] {
+		c.setValue(v)
+	}
+	if c.capacity < len(values) {
+		// Remove older entries from backend
+		for _, v := range values[:n] {
+			backend.Evict(v.Key)
+		}
+	}
+	c.backend = backend
 }
 
 // Get returns the DNS message associated with key.
@@ -177,19 +225,22 @@ func (c *Cache) Set(key uint32, msg *dns.Msg) {
 }
 
 func (c *Cache) set(key uint32, msg *dns.Msg) bool {
-	return c.setValue(key, Value{Key: key, CreatedAt: c.now(), msg: msg})
+	return c.setValue(Value{Key: key, CreatedAt: c.now(), msg: msg})
 }
 
-func (c *Cache) setValue(key uint32, value Value) bool {
+func (c *Cache) setValue(value Value) bool {
 	if c.capacity == 0 || !canCache(value.msg) {
 		return false
 	}
 	if len(c.values) == c.capacity && c.capacity > 0 {
-		delete(c.values, c.keys[0])
+		evict := c.keys[0]
+		delete(c.values, evict)
 		c.keys = c.keys[1:]
+		c.backend.Evict(evict)
 	}
-	c.values[key] = value
-	c.appendKey(key)
+	c.values[value.Key] = value
+	c.appendKey(value.Key)
+	c.backend.Set(value.Key, value)
 	return true
 }
 
@@ -199,6 +250,7 @@ func (c *Cache) Reset() {
 	defer c.mu.Unlock()
 	c.values = make(map[uint32]Value)
 	c.keys = nil
+	c.backend.Reset()
 }
 
 func (c *Cache) prefetch() bool { return c.client != nil }
@@ -227,6 +279,7 @@ func (c *Cache) evictWithLock(key uint32) {
 func (c *Cache) evict(key uint32) {
 	delete(c.values, key)
 	c.removeKey(key)
+	c.backend.Evict(key)
 }
 
 func (c *Cache) appendKey(key uint32) {
