@@ -48,12 +48,12 @@ func NewServer(logger *log.Logger, proxy *dns.Proxy, config Config) (*Server, er
 	proxy.Handler = server.hijack
 
 	// Periodically refresh hosts
-	if t := config.DNS.refreshInterval; t > 0 {
-		go server.reloadHosts(config.DNS.refreshInterval)
+	if interval := config.DNS.refreshInterval; interval > 0 {
+		go server.reloadHosts(interval)
 	}
 
 	// Load initial hosts
-	server.loadHosts()
+	go server.loadHosts()
 	return server, nil
 }
 

@@ -109,6 +109,13 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 		defer cleanup()
 		t.Fatal(err)
 	}
+	ts := time.Now()
+	for srv.hosts == nil {
+		time.Sleep(10 * time.Millisecond)
+		if time.Since(ts) > 2*time.Second {
+			t.Fatal("timed out waiting initial hosts to load")
+		}
+	}
 	return srv, cleanup
 }
 
