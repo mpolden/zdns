@@ -136,7 +136,11 @@ The following examples assumes that _zdns_ is running on port 53000. See
 ### Linux (iptables)
 
 ``` shell
-$ iptables -t nat -A PREROUTING -d 127.0.0.1 -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
+# External requests
+$ iptables -t nat -A PREROUTING -d -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
+
+# Local requests
+$ -A OUTPUT -d 127.0.0.1 -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
 ```
 
 ### macOS (pf)
