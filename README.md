@@ -16,6 +16,7 @@ configure.
   [Pi-hole](https://github.com/pi-hole/pi-hole).
 * **Fast**: Efficient filtering and caching of DNS requests. With pre-fetching
   enabled, cached requests will never block waiting for the upstream resolver.
+  Asynchronous persistent caching is also supported.
 * **Reliable**: Built with Go and [miekg/dns](https://github.com/miekg/dns) - a
   mature DNS library.
 * **Secure**: Protect your DNS requests from snooping and tampering using [DNS
@@ -23,8 +24,8 @@ configure.
   HTTPS](https://en.wikipedia.org/wiki/DNS_over_HTTPS) for upstream resolvers.
 * **Self-contained**: Zero run-time dependencies makes _zdns_ easy to deploy and
   maintain.
-* **Observable**: _zdns_ supports DNS logging which makes it easy to observe what's
-  going on your network.
+* **Observable**: _zdns_ features DNS logging and metrics which makes it easy to
+  observe what's going on your network.
 * **Portable**: Run it on your VPS, container, laptop, Raspberry Pi or home
   router. Runs on all platforms supported by Go.
 
@@ -117,7 +118,7 @@ Clear the cache:
 ```shell
 $ curl -s -XDELETE 'http://127.0.0.1:8053/cache/v1/' | jq .
 {
-  "message": "Cleared cache"
+  "message": "Cleared cache."
 }
 ```
 
