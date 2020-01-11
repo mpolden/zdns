@@ -81,7 +81,10 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 	sigHandler := signal.NewHandler(sig, logger)
 
 	// SQL backends
-	var sqlLogger *sql.Logger
+	var (
+		sqlLogger *sql.Logger
+		sqlCache  *sql.Cache
+	)
 	if config.DNS.Database != "" {
 		sqlClient, err := sql.New(config.DNS.Database)
 		fatal(err)
@@ -89,20 +92,30 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 		// Logger
 		sqlLogger = sql.NewLogger(sqlClient, config.DNS.LogMode, config.DNS.LogTTL)
 		sigHandler.OnClose(sqlLogger)
+
+		// Cache
+		sqlCache = sql.NewCache(sqlClient, logger)
+		sigHandler.OnClose(sqlCache)
 	}
 
 	// DNS client
 	dnsClient := dnsutil.NewClient(config.Resolver.Protocol, config.Resolver.Timeout, config.DNS.Resolvers...)
 
 	// Cache
+	var dnsCache *cache.Cache
 	var cacheDNS *dnsutil.Client
 	if config.DNS.CachePrefetch {
 		cacheDNS = dnsClient
 	}
-	cache := cache.New(config.DNS.CacheSize, cacheDNS)
+	if sqlCache != nil && config.DNS.CachePersist {
+		dnsCache = cache.NewWithBackend(config.DNS.CacheSize, cacheDNS, sqlCache)
+
+	} else {
+		dnsCache = cache.New(config.DNS.CacheSize, cacheDNS)
+	}
 
 	// DNS server
-	proxy, err := dns.NewProxy(cache, dnsClient, logger, sqlLogger)
+	proxy, err := dns.NewProxy(dnsCache, dnsClient, logger, sqlLogger)
 	fatal(err)
 	sigHandler.OnClose(proxy)
 
@@ -114,7 +127,7 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 
 	// HTTP server
 	if config.DNS.ListenHTTP != "" {
-		httpSrv := http.NewServer(cache, sqlLogger, logger, config.DNS.ListenHTTP)
+		httpSrv := http.NewServer(dnsCache, sqlLogger, logger, config.DNS.ListenHTTP)
 		sigHandler.OnClose(httpSrv)
 		servers = append(servers, httpSrv)
 	}

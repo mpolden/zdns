@@ -169,6 +169,9 @@ resolvers = ["http://example.com"]
 [resolver]
 protocol = "https"
 `
+	conf15 := baseConf + `
+cache_persist = true
+`
 	var tests = []struct {
 		in  string
 		err string
@@ -189,6 +192,7 @@ protocol = "https"
 		{conf12, "invalid log mode: foo"},
 		{conf13, `log_mode = "hijacked" requires 'database' to be set`},
 		{conf14, "protocol https requires https scheme for resolver http://example.com"},
+		{conf15, "cache_persist = true requires 'database' to be set"},
 	}
 	for i, tt := range tests {
 		var got string

@@ -26,6 +26,7 @@ type DNSOptions struct {
 	Protocol        string `toml:"protocol"`
 	CacheSize       int    `toml:"cache_size"`
 	CachePrefetch   bool   `toml:"cache_prefetch"`
+	CachePersist    bool   `toml:"cache_persist"`
 	HijackMode      string `toml:"hijack_mode"`
 	hijackMode      int
 	RefreshInterval string `toml:"hosts_refresh_interval"`
@@ -87,6 +88,9 @@ func (c *Config) load() error {
 	}
 	if c.DNS.CacheSize < 0 {
 		return fmt.Errorf("cache size must be >= 0")
+	}
+	if c.DNS.CachePersist && c.DNS.Database == "" {
+		return fmt.Errorf("cache_persist = %t requires 'database' to be set", c.DNS.CachePersist)
 	}
 	switch c.DNS.HijackMode {
 	case "", "zero":
