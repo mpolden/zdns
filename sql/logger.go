@@ -40,13 +40,12 @@ type Entry struct {
 func NewLogger(db *Client, mode int, ttl time.Duration, logger *log.Logger) *Logger {
 	l := &Logger{
 		db:     db,
-		queue:  make(chan Entry, 100),
+		queue:  make(chan Entry, 1024),
 		now:    time.Now,
 		mode:   mode,
 		logger: logger,
 	}
 	if mode != LogDiscard {
-		l.wg.Add(1)
 		go l.readQueue(ttl)
 	}
 	return l
@@ -54,7 +53,6 @@ func NewLogger(db *Client, mode int, ttl time.Duration, logger *log.Logger) *Log
 
 // Close consumes any outstanding log requests and closes the logger.
 func (l *Logger) Close() error {
-	close(l.queue)
 	l.wg.Wait()
 	return nil
 }
@@ -70,6 +68,7 @@ func (l *Logger) Record(remoteAddr net.IP, hijacked bool, qtype uint16, question
 	if l.mode == LogHijacked && !hijacked {
 		return
 	}
+	l.wg.Add(1)
 	l.queue <- Entry{
 		Time:       l.now(),
 		RemoteAddr: remoteAddr,
@@ -110,7 +109,6 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 }
 
 func (l *Logger) readQueue(ttl time.Duration) {
-	defer l.wg.Done()
 	for e := range l.queue {
 		if err := l.db.WriteLog(e.Time, e.RemoteAddr, e.Hijacked, e.Qtype, e.Question, e.Answers...); err != nil {
 			l.logger.Printf("write failed: %+v: %s", e, err)
@@ -121,5 +119,6 @@ func (l *Logger) readQueue(ttl time.Duration) {
 				l.logger.Printf("deleting log entries before %v failed: %s", t, err)
 			}
 		}
+		l.wg.Done()
 	}
 }

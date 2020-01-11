@@ -30,7 +30,7 @@ type Cache struct {
 // NewCache creates a new cache using client to persist entries.
 func NewCache(client *Client, logger *log.Logger) *Cache {
 	c := &Cache{
-		queue:  make(chan query, 100),
+		queue:  make(chan query, 1024),
 		client: client,
 		logger: logger,
 	}
@@ -38,7 +38,7 @@ func NewCache(client *Client, logger *log.Logger) *Cache {
 	return c
 }
 
-// Close drains and persist queued requests in this cache.
+// Close consumes any outstanding queued requests and closes the cache.
 func (c *Cache) Close() error {
 	c.wg.Wait()
 	return nil
@@ -99,6 +99,6 @@ func (c *Cache) readQueue() {
 		default:
 			c.logger.Printf("unhandled operation %d", q.op)
 		}
-		c.wg.Add(-1)
+		c.wg.Done()
 	}
 }
