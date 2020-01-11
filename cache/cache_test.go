@@ -63,7 +63,7 @@ func reverse(msgs []*dns.Msg) []*dns.Msg {
 	return reversed
 }
 
-func awaitExpiry(t *testing.T, i int, c *Cache, k uint64) {
+func awaitExpiry(t *testing.T, i int, c *Cache, k uint32) {
 	now := time.Now()
 	for { // Loop until k is removed by maintainer
 		c.mu.RLock()
@@ -79,7 +79,7 @@ func awaitExpiry(t *testing.T, i int, c *Cache, k uint64) {
 	}
 }
 
-func awaitRefresh(t *testing.T, i int, c *Cache, k uint64, u time.Time) {
+func awaitRefresh(t *testing.T, i int, c *Cache, k uint32, u time.Time) {
 	now := time.Now()
 	for { // Loop until CreatedAt of key k is after u
 		c.mu.RLock()
@@ -100,12 +100,12 @@ func TestNewKey(t *testing.T) {
 	var tests = []struct {
 		name          string
 		qtype, qclass uint16
-		out           uint64
+		out           uint32
 	}{
-		{"foo.", dns.TypeA, dns.ClassINET, 12854986581909659251},
-		{"foo.", dns.TypeAAAA, dns.ClassINET, 12509032947198407788},
-		{"foo.", dns.TypeA, dns.ClassANY, 12855125120374813837},
-		{"bar.", dns.TypeA, dns.ClassINET, 4069151952488606484},
+		{"foo.", dns.TypeA, dns.ClassINET, 2839090419},
+		{"foo.", dns.TypeAAAA, dns.ClassINET, 3344654668},
+		{"foo.", dns.TypeA, dns.ClassANY, 1731870733},
+		{"bar.", dns.TypeA, dns.ClassINET, 1951431764},
 	}
 	for i, tt := range tests {
 		got := NewKey(tt.name, tt.qtype, tt.qclass)
@@ -134,13 +134,13 @@ func TestCache(t *testing.T) {
 		ok        bool
 		value     *Value
 	}{
-		{msg, now, true, &Value{Key: 16316346957082771326, CreatedAt: now, msg: msg}},                       // Not expired when query time == create time
-		{msg, now.Add(30 * time.Second), true, &Value{Key: 16316346957082771326, CreatedAt: now, msg: msg}}, // Not expired when below TTL
-		{msg, now.Add(60 * time.Second), true, &Value{Key: 16316346957082771326, CreatedAt: now, msg: msg}}, // Not expired until TTL exceeds
-		{msgNameError, now, true, &Value{Key: 7258598034460334943, CreatedAt: now, msg: msgNameError}},      // NXDOMAIN is cached
-		{msg, now.Add(61 * time.Second), false, nil},                                                        // Expired due to TTL exceeded
-		{msgWithZeroTTL, now, false, nil},                                                                   // 0 TTL is not cached
-		{msgFailure, now, false, nil},                                                                       // Non-cacheable rcode
+		{msg, now, true, &Value{Key: 3640515006, CreatedAt: now, msg: msg}},                       // Not expired when query time == create time
+		{msg, now.Add(30 * time.Second), true, &Value{Key: 3640515006, CreatedAt: now, msg: msg}}, // Not expired when below TTL
+		{msg, now.Add(60 * time.Second), true, &Value{Key: 3640515006, CreatedAt: now, msg: msg}}, // Not expired until TTL exceeds
+		{msgNameError, now, true, &Value{Key: 3980405151, CreatedAt: now, msg: msgNameError}},     // NXDOMAIN is cached
+		{msg, now.Add(61 * time.Second), false, nil},                                              // Expired due to TTL exceeded
+		{msgWithZeroTTL, now, false, nil},                                                         // 0 TTL is not cached
+		{msgFailure, now, false, nil},                                                             // Non-cacheable rcode
 	}
 	for i, tt := range tests {
 		c.now = nowFn
@@ -252,7 +252,7 @@ func TestCacheList(t *testing.T) {
 
 func TestReset(t *testing.T) {
 	c := New(10, nil)
-	c.Set(uint64(1), &dns.Msg{})
+	c.Set(uint32(1), &dns.Msg{})
 	c.Reset()
 	if got, want := len(c.values), 0; got != want {
 		t.Errorf("len(values) = %d, want %d", got, want)
@@ -296,7 +296,7 @@ func TestCachePrefetch(t *testing.T) {
 		exchanger.setAnswer(copy)
 		c.now = func() time.Time { return now }
 
-		var key uint64 = 1
+		var key uint32 = 1
 		c.Set(key, msg)
 		c.now = func() time.Time { return tt.queryTime }
 		v, ok := c.getValue(key)
@@ -329,7 +329,7 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 	c := newCache(10, client, func() time.Time { return now })
 
 	msg := newA("example.com.", 60, net.ParseIP("192.0.2.1"))
-	var key uint64 = 1
+	var key uint32 = 1
 	c.Set(key, msg)
 
 	// Initial prefetched answer can no longer be cached
@@ -395,8 +395,8 @@ func BenchmarkCache(b *testing.B) {
 	c := New(1000, nil)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		c.Set(uint64(n), &dns.Msg{})
-		c.Get(uint64(n))
+		c.Set(uint32(n), &dns.Msg{})
+		c.Get(uint32(n))
 	}
 }
 
@@ -404,7 +404,7 @@ func BenchmarkCacheEviction(b *testing.B) {
 	c := New(1, nil)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		c.Set(uint64(n), &dns.Msg{})
-		c.Get(uint64(n))
+		c.Set(uint32(n), &dns.Msg{})
+		c.Get(uint32(n))
 	}
 }

@@ -18,15 +18,15 @@ import (
 type Cache struct {
 	client   *dnsutil.Client
 	capacity int
-	values   map[uint64]Value
-	keys     []uint64
+	values   map[uint32]Value
+	keys     []uint32
 	mu       sync.RWMutex
 	now      func() time.Time
 }
 
 // Value wraps a DNS message stored in the cache.
 type Value struct {
-	Key       uint64
+	Key       uint32
 	CreatedAt time.Time
 	msg       *dns.Msg
 }
@@ -49,7 +49,7 @@ func (v *Value) TTL() time.Duration { return dnsutil.MinTTL(v.msg) }
 // Pack returns a string representation of Value v.
 func (v *Value) Pack() (string, error) {
 	var sb strings.Builder
-	sb.WriteString(strconv.FormatUint(v.Key, 10))
+	sb.WriteString(strconv.FormatUint(uint64(v.Key), 10))
 	sb.WriteString(" ")
 	sb.WriteString(strconv.FormatInt(v.CreatedAt.Unix(), 10))
 	sb.WriteString(" ")
@@ -67,7 +67,7 @@ func Unpack(value string) (Value, error) {
 	if len(fields) < 3 {
 		return Value{}, fmt.Errorf("invalid number of fields: %q", value)
 	}
-	key, err := strconv.ParseUint(fields[0], 10, 64)
+	key, err := strconv.ParseUint(fields[0], 10, 32)
 	if err != nil {
 		return Value{}, err
 	}
@@ -84,7 +84,7 @@ func Unpack(value string) (Value, error) {
 		return Value{}, err
 	}
 	return Value{
-		Key:       key,
+		Key:       uint32(key),
 		CreatedAt: time.Unix(secs, 0),
 		msg:       msg,
 	}, nil
@@ -105,21 +105,21 @@ func newCache(capacity int, client *dnsutil.Client, now func() time.Time) *Cache
 		client:   client,
 		now:      now,
 		capacity: capacity,
-		values:   make(map[uint64]Value, capacity),
+		values:   make(map[uint32]Value, capacity),
 	}
 }
 
 // NewKey creates a new cache key for the DNS name, qtype and qclass
-func NewKey(name string, qtype, qclass uint16) uint64 {
-	h := fnv.New64a()
+func NewKey(name string, qtype, qclass uint16) uint32 {
+	h := fnv.New32a()
 	h.Write([]byte(name))
 	binary.Write(h, binary.BigEndian, qtype)
 	binary.Write(h, binary.BigEndian, qclass)
-	return h.Sum64()
+	return h.Sum32()
 }
 
 // Get returns the DNS message associated with key.
-func (c *Cache) Get(key uint64) (*dns.Msg, bool) {
+func (c *Cache) Get(key uint32) (*dns.Msg, bool) {
 	v, ok := c.getValue(key)
 	if !ok {
 		return nil, false
@@ -127,7 +127,7 @@ func (c *Cache) Get(key uint64) (*dns.Msg, bool) {
 	return v.msg, true
 }
 
-func (c *Cache) getValue(key uint64) (*Value, bool) {
+func (c *Cache) getValue(key uint32) (*Value, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	v, ok := c.values[key]
@@ -170,17 +170,17 @@ func (c *Cache) List(n int) []Value {
 // If prefetching is enabled, the message will never be evicted, but it will be refreshed when the TTL passes.
 //
 // Setting a new key in a cache that has reached its capacity will evict values in a FIFO order.
-func (c *Cache) Set(key uint64, msg *dns.Msg) {
+func (c *Cache) Set(key uint32, msg *dns.Msg) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.set(key, msg)
 }
 
-func (c *Cache) set(key uint64, msg *dns.Msg) bool {
+func (c *Cache) set(key uint32, msg *dns.Msg) bool {
 	return c.setValue(key, Value{Key: key, CreatedAt: c.now(), msg: msg})
 }
 
-func (c *Cache) setValue(key uint64, value Value) bool {
+func (c *Cache) setValue(key uint32, value Value) bool {
 	if c.capacity == 0 || !canCache(value.msg) {
 		return false
 	}
@@ -197,13 +197,13 @@ func (c *Cache) setValue(key uint64, value Value) bool {
 func (c *Cache) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.values = make(map[uint64]Value)
+	c.values = make(map[uint32]Value)
 	c.keys = nil
 }
 
 func (c *Cache) prefetch() bool { return c.client != nil }
 
-func (c *Cache) refresh(key uint64, old *dns.Msg) {
+func (c *Cache) refresh(key uint32, old *dns.Msg) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	q := old.Question[0]
@@ -218,24 +218,24 @@ func (c *Cache) refresh(key uint64, old *dns.Msg) {
 	}
 }
 
-func (c *Cache) evictWithLock(key uint64) {
+func (c *Cache) evictWithLock(key uint32) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.evict(key)
 }
 
-func (c *Cache) evict(key uint64) {
+func (c *Cache) evict(key uint32) {
 	delete(c.values, key)
 	c.removeKey(key)
 }
 
-func (c *Cache) appendKey(key uint64) {
+func (c *Cache) appendKey(key uint32) {
 	c.removeKey(key)
 	c.keys = append(c.keys, key)
 }
 
-func (c *Cache) removeKey(key uint64) {
-	var keys []uint64
+func (c *Cache) removeKey(key uint32) {
+	var keys []uint32
 	for _, k := range c.keys {
 		if k == key {
 			continue
