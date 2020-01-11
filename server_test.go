@@ -114,7 +114,13 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 		t.Fatal(err)
 	}
 	ts := time.Now()
-	for srv.hosts == nil {
+	for {
+		srv.mu.RLock()
+		hostsLoaded := srv.hosts != nil
+		srv.mu.RUnlock()
+		if hostsLoaded {
+			break
+		}
 		time.Sleep(10 * time.Millisecond)
 		if time.Since(ts) > 2*time.Second {
 			t.Fatal("timed out waiting initial hosts to load")
