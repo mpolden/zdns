@@ -53,6 +53,13 @@ CREATE TABLE IF NOT EXISTS log_rr_answer (
   FOREIGN KEY       (log_id)          REFERENCES log(id),
   FOREIGN KEY       (rr_answer_id)    REFERENCES rr_answer(id)
 );
+
+CREATE TABLE IF NOT EXISTS cache (
+  id                INTEGER           PRIMARY KEY,
+  key               INTEGER           NOT NULL,
+  data              TEXT              NOT NULL,
+  CONSTRAINT        key_unique        UNIQUE(key)
+);
 `
 
 // Client implements a client for a SQLite database.
@@ -70,6 +77,11 @@ type LogEntry struct {
 	Qtype      uint16 `db:"type"`
 	Question   string `db:"question"`
 	Answer     string `db:"answer"`
+}
+
+type cacheEntry struct {
+	Key  uint32 `db:"key"`
+	Data string `db:"data"`
 }
 
 // New creates a new database client for given filename.
@@ -217,4 +229,56 @@ func (c *Client) DeleteLogBefore(t time.Time) (err error) {
 		}
 	}
 	return tx.Commit()
+}
+
+func (c *Client) writeCacheValue(key uint32, data string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	tx, err := c.db.Beginx()
+	if err != nil {
+		return nil
+	}
+	defer tx.Rollback()
+	query := `INSERT INTO cache (key, data) VALUES ($1, $2)
+                   ON CONFLICT(key) DO UPDATE SET data=excluded.data`
+	if _, err := tx.Exec(query, key, data); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (c *Client) removeCacheValue(key uint32) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	tx, err := c.db.Beginx()
+	if err != nil {
+		return nil
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec("DELETE FROM cache WHERE key = $1", key); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (c *Client) truncateCache() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	tx, err := c.db.Beginx()
+	if err != nil {
+		return nil
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec("DELETE FROM cache"); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (c *Client) readCache() ([]cacheEntry, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var entries []cacheEntry
+	err := c.db.Select(&entries, "SELECT key, data FROM cache ORDER BY id ASC")
+	return entries, err
 }
