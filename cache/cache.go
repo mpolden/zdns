@@ -212,11 +212,8 @@ func (c *Cache) List(n int) []Value {
 		if len(values) == n {
 			break
 		}
-		v, ok := c.getValue(c.keys[i])
-		if !ok {
-			continue
-		}
-		values = append(values, *v)
+		v := c.values[c.keys[i]]
+		values = append(values, v)
 	}
 	return values
 }
