@@ -19,7 +19,7 @@ type query struct {
 	value cache.Value
 }
 
-// Cache is a persistent cache. Entries are written to a SQL database.
+// Cache is a persistent DNS cache. Values added to the cache are written to a SQL database.
 type Cache struct {
 	wg     sync.WaitGroup
 	queue  chan query
@@ -27,7 +27,7 @@ type Cache struct {
 	logger *log.Logger
 }
 
-// NewCache creates a new cache using client to persist entries.
+// NewCache creates a new cache using client for persistence.
 func NewCache(client *Client) *Cache {
 	c := &Cache{
 		queue:  make(chan query, 1024),
@@ -37,19 +37,22 @@ func NewCache(client *Client) *Cache {
 	return c
 }
 
-// Close consumes any outstanding queued requests and closes the cache.
+// Close consumes any outstanding writes and closes the cache.
 func (c *Cache) Close() error {
 	c.wg.Wait()
 	return nil
 }
 
-// Set associates the value v with key.
-func (c *Cache) Set(key uint32, v cache.Value) { c.enqueue(query{op: setOp, key: key, value: v}) }
+// Set queues a write associating value with key. Set is non-blocking, but read operations wait for any pending writes
+// to complete before reading.
+func (c *Cache) Set(key uint32, value cache.Value) {
+	c.enqueue(query{op: setOp, key: key, value: value})
+}
 
-// Evict removes any value associated with key.
+// Evict queues a removal of key. As Set, Evict is non-blocking.
 func (c *Cache) Evict(key uint32) { c.enqueue(query{op: removeOp, key: key}) }
 
-// Reset removes all entries from the cache.
+// Reset queues removal of all entries. As Set, Reset is non-blocking.
 func (c *Cache) Reset() { c.enqueue(query{op: resetOp}) }
 
 // Read returns all entries in the cache.
@@ -82,18 +85,18 @@ func (c *Cache) readQueue() {
 		case setOp:
 			packed, err := q.value.Pack()
 			if err != nil {
-				c.logger.Fatalf("failed to pack value: %w", err)
+				c.logger.Fatalf("failed to pack value: %s", err)
 			}
 			if err := c.client.writeCacheValue(q.key, packed); err != nil {
-				c.logger.Printf("failed to write key=%d data=%q: %w", q.key, packed, err)
+				c.logger.Printf("failed to write key=%d data=%q: %s", q.key, packed, err)
 			}
 		case removeOp:
 			if err := c.client.removeCacheValue(q.key); err != nil {
-				c.logger.Printf("failed to remove key=%d: %w", q.key, err)
+				c.logger.Printf("failed to remove key=%d: %s", q.key, err)
 			}
 		case resetOp:
 			if err := c.client.truncateCache(); err != nil {
-				c.logger.Printf("failed to truncate cache: %w", err)
+				c.logger.Printf("failed to truncate cache: %s", err)
 			}
 		default:
 			c.logger.Printf("unhandled operation %d", q.op)

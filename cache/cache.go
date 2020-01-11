@@ -14,7 +14,7 @@ import (
 	"github.com/mpolden/zdns/dns/dnsutil"
 )
 
-// Backend is the interface for a persistent cache backend.
+// Backend is the interface for a cache backend. All write operations in a Cache are forwarded to a Backend.
 type Backend interface {
 	Set(key uint32, value Value)
 	Evict(key uint32)
@@ -109,7 +109,11 @@ func Unpack(value string) (Value, error) {
 // New creates a new cache of given capacity.
 //
 // If client is non-nil, the cache will prefetch expired entries in an effort to serve results faster.
-// If backend is non-nil, the cache will use it to persist cache entries.
+//
+// If backend is non-nil:
+//
+// - All cache write operations will be forward to the backend.
+// - The backed will be used to pre-populate the cache.
 func New(capacity int, client *dnsutil.Client) *Cache {
 	return NewWithBackend(capacity, client, &defaultBackend{})
 }
