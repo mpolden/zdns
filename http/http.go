@@ -33,10 +33,33 @@ type entry struct {
 	Rcode      string   `json:"rcode,omitempty"`
 }
 
+type summary struct {
+	Since    string `json:"since"`
+	Total    int64  `json:"total"`
+	Hijacked int64  `json:"hijacked"`
+}
+
+type request struct {
+	Time  string `json:"time"`
+	Count int64  `json:"count"`
+}
+
+type logStats struct {
+	Summary  summary   `json:"summary"`
+	Requests []request `json:"requests"`
+}
+
 type httpError struct {
 	err     error
 	Status  int    `json:"status"`
 	Message string `json:"message"`
+}
+
+func newHTTPError(err error) *httpError {
+	return &httpError{
+		err:    err,
+		Status: http.StatusInternalServerError,
+	}
 }
 
 // NewServer creates a new HTTP server, serving logs from the given logger and listening on addr.
@@ -55,6 +78,7 @@ func (s *Server) handler() http.Handler {
 	r := newRouter()
 	r.route(http.MethodGet, "/cache/v1/", s.cacheHandler)
 	r.route(http.MethodGet, "/log/v1/", s.logHandler)
+	r.route(http.MethodGet, "/metric/v1/", s.metricHandler)
 	r.route(http.MethodDelete, "/cache/v1/", s.cacheResetHandler)
 	return r.handler()
 }
@@ -89,18 +113,13 @@ func (s *Server) cacheResetHandler(w http.ResponseWriter, r *http.Request) (inte
 	s.cache.Reset()
 	return struct {
 		Message string `json:"message"`
-	}{
-		"Cleared cache",
-	}, nil
+	}{"Cleared cache."}, nil
 }
 
 func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
 	logEntries, err := s.logger.Read(listCountFrom(r))
 	if err != nil {
-		return nil, &httpError{
-			err:    err,
-			Status: http.StatusInternalServerError,
-		}
+		return nil, newHTTPError(err)
 	}
 	entries := make([]entry, 0, len(logEntries))
 	for _, le := range logEntries {
@@ -115,6 +134,29 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 		})
 	}
 	return entries, nil
+}
+
+func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
+	stats, err := s.logger.Stats()
+	if err != nil {
+		return nil, newHTTPError(err)
+	}
+	requests := make([]request, 0, len(stats.Events))
+	for _, e := range stats.Events {
+		requests = append(requests, request{
+			Time:  e.Time.Format(time.RFC3339),
+			Count: e.Count,
+		})
+	}
+	logStats := logStats{
+		Summary: summary{
+			Since:    stats.Since.Format(time.RFC3339),
+			Total:    stats.Total,
+			Hijacked: stats.Hijacked,
+		},
+		Requests: requests,
+	}
+	return logStats, nil
 }
 
 // Close shuts down the HTTP server.

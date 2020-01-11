@@ -182,3 +182,29 @@ func TestInterleavedRW(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestReadLogStats(t *testing.T) {
+	c := testClient()
+	writeTests(c, t)
+	got, err := c.readLogStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := logStats{
+		Since:    1560636910,
+		Hijacked: 1,
+		Total:    8,
+		Events: []logEvent{
+			{Time: 1560636910, Count: 1},
+			{Time: 1560636980, Count: 1},
+			{Time: 1560637050, Count: 1},
+			{Time: 1560637120, Count: 1},
+			{Time: 1560639880, Count: 1},
+			{Time: 1560641700, Count: 2},
+			{Time: 1560647100, Count: 1},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("readLogStats() = (%+v, _), want (%+v, _)", got, want)
+	}
+}

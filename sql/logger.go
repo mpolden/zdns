@@ -35,6 +35,20 @@ type LogEntry struct {
 	Answers    []string
 }
 
+// LogStats contains log statistics.
+type LogStats struct {
+	Since    time.Time
+	Total    int64
+	Hijacked int64
+	Events   []LogEvent
+}
+
+// LogEvent contains the number of requests at a point in time.
+type LogEvent struct {
+	Time  time.Time
+	Count int64
+}
+
 // NewLogger creates a new logger. Persisted entries are kept according to ttl.
 func NewLogger(client *Client, mode int, ttl time.Duration) *Logger {
 	l := &Logger{
@@ -101,6 +115,27 @@ func (l *Logger) Read(n int) ([]LogEntry, error) {
 		}
 	}
 	return logEntries, nil
+}
+
+// Stats returns logger statistics.
+func (l *Logger) Stats() (LogStats, error) {
+	stats, err := l.client.readLogStats()
+	if err != nil {
+		return LogStats{}, err
+	}
+	events := make([]LogEvent, 0, len(stats.Events))
+	for _, le := range stats.Events {
+		events = append(events, LogEvent{
+			Time:  time.Unix(le.Time, 0).UTC(),
+			Count: le.Count,
+		})
+	}
+	return LogStats{
+		Since:    time.Unix(stats.Since, 0).UTC(),
+		Total:    stats.Total,
+		Hijacked: stats.Hijacked,
+		Events:   events,
+	}, nil
 }
 
 func (l *Logger) readQueue(ttl time.Duration) {

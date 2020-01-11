@@ -30,11 +30,11 @@ func newA(name string, ttl uint32, ipAddr ...net.IP) *dns.Msg {
 }
 
 func testServer() (*httptest.Server, *Server) {
-	db, err := sql.New(":memory:")
+	sqlClient, err := sql.New(":memory:")
 	if err != nil {
 		panic(err)
 	}
-	logger := sql.NewLogger(db, sql.LogAll, 0)
+	logger := sql.NewLogger(sqlClient, sql.LogAll, 0)
 	cache := cache.New(10, nil)
 	server := Server{logger: logger, cache: cache}
 	return httptest.NewServer(server.handler()), &server
@@ -89,6 +89,7 @@ func TestRequests(t *testing.T) {
 	lr1 := `[{"time":"RFC3339","remote_addr":"127.0.0.254","hijacked":true,"type":"AAAA","question":"example.com.","answers":["2001:db8::1"]},` +
 		`{"time":"RFC3339","remote_addr":"127.0.0.42","hijacked":false,"type":"A","question":"example.com.","answers":["192.0.2.101","192.0.2.100"]}]`
 	lr2 := `[{"time":"RFC3339","remote_addr":"127.0.0.254","hijacked":true,"type":"AAAA","question":"example.com.","answers":["2001:db8::1"]}]`
+	mr1 := `{"summary":{"since":"RFC3339","total":2,"hijacked":1},"requests":[{"time":"RFC3339","count":2}]}`
 
 	var tests = []struct {
 		method   string
@@ -103,7 +104,8 @@ func TestRequests(t *testing.T) {
 		{http.MethodGet, "/cache/v1/", cr1, 200},
 		{http.MethodGet, "/cache/v1/?n=foo", cr1, 200},
 		{http.MethodGet, "/cache/v1/?n=1", cr2, 200},
-		{http.MethodDelete, "/cache/v1/", `{"message":"Cleared cache"}`, 200},
+		{http.MethodDelete, "/cache/v1/", `{"message":"Cleared cache."}`, 200},
+		{http.MethodGet, "/metric/v1/", mr1, 200},
 	}
 
 	for i, tt := range tests {

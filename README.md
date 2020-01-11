@@ -121,6 +121,29 @@ $ curl -s -XDELETE 'http://127.0.0.1:8053/cache/v1/' | jq .
 }
 ```
 
+Metrics:
+
+``` shell
+$ curl 'http://127.0.0.1:8053/metric/v1/' | jq .
+{
+  "summary": {
+    "since": "2020-01-05T00:58:49Z",
+    "total": 2307,
+    "hijacked": 867
+  },
+  "requests": [
+    {
+      "time": "2020-01-05T00:58:49Z",
+      "count": 1
+    }
+  ]
+}
+```
+
+Note that `log_mode = "hijacked"` or `log_mode = "all"` is required to make
+metrics available. Choosing `hijacked` will only produce metrics for hijacked
+requests.
+
 ## Port redirection
 
 Most operating systems expect to find their DNS resolver on UDP port 53.

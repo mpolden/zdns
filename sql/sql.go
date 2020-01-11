@@ -78,6 +78,18 @@ type logEntry struct {
 	Answer     string `db:"answer"`
 }
 
+type logStats struct {
+	Since    int64 `db:"since"`
+	Hijacked int64 `db:"hijacked"`
+	Total    int64 `db:"total"`
+	Events   []logEvent
+}
+
+type logEvent struct {
+	Time  int64 `db:"time"`
+	Count int64 `db:"count"`
+}
+
 type cacheEntry struct {
 	Key  uint32 `db:"key"`
 	Data string `db:"data"`
@@ -225,6 +237,31 @@ func (c *Client) deleteLogBefore(t time.Time) (err error) {
 		}
 	}
 	return tx.Commit()
+}
+
+func (c *Client) readLogStats() (logStats, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var stats logStats
+	q1 := `SELECT COUNT(*) as total,
+                      COUNT(CASE hijacked WHEN 1 THEN 1 ELSE NULL END) as hijacked,
+                      time AS since
+               FROM log
+               ORDER BY time ASC LIMIT 1`
+	if err := c.db.Get(&stats, q1); err != nil {
+		return logStats{}, err
+	}
+	var events []logEvent
+	q2 := `SELECT time,
+                      COUNT(*) AS count
+               FROM log
+               GROUP BY time
+               ORDER BY time ASC`
+	if err := c.db.Select(&events, q2); err != nil {
+		return logStats{}, err
+	}
+	stats.Events = events
+	return stats, nil
 }
 
 func (c *Client) writeCacheValue(key uint32, data string) error {
