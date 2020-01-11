@@ -33,10 +33,14 @@ type entry struct {
 	Rcode      string   `json:"rcode,omitempty"`
 }
 
+type stats struct {
+	Summary  summary   `json:"summary"`
+	Requests []request `json:"requests"`
+}
+
 type summary struct {
-	Since    string `json:"since"`
-	Total    int64  `json:"total"`
-	Hijacked int64  `json:"hijacked"`
+	Log   logStats   `json:"log"`
+	Cache cacheStats `json:"cache"`
 }
 
 type request struct {
@@ -45,8 +49,14 @@ type request struct {
 }
 
 type logStats struct {
-	Summary  summary   `json:"summary"`
-	Requests []request `json:"requests"`
+	Since    string `json:"since"`
+	Total    int64  `json:"total"`
+	Hijacked int64  `json:"hijacked"`
+}
+
+type cacheStats struct {
+	Size     int `json:"size"`
+	Capacity int `json:"capacity"`
 }
 
 type httpError struct {
@@ -137,26 +147,32 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 }
 
 func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	stats, err := s.logger.Stats()
+	lstats, err := s.logger.Stats()
 	if err != nil {
 		return nil, newHTTPError(err)
 	}
-	requests := make([]request, 0, len(stats.Events))
-	for _, e := range stats.Events {
+	requests := make([]request, 0, len(lstats.Events))
+	for _, e := range lstats.Events {
 		requests = append(requests, request{
 			Time:  e.Time.Format(time.RFC3339),
 			Count: e.Count,
 		})
 	}
-	logStats := logStats{
+	cstats := s.cache.Stats()
+	return stats{
 		Summary: summary{
-			Since:    stats.Since.Format(time.RFC3339),
-			Total:    stats.Total,
-			Hijacked: stats.Hijacked,
+			Log: logStats{
+				Since:    lstats.Since.Format(time.RFC3339),
+				Total:    lstats.Total,
+				Hijacked: lstats.Hijacked,
+			},
+			Cache: cacheStats{
+				Capacity: cstats.Capacity,
+				Size:     cstats.Size,
+			},
 		},
 		Requests: requests,
-	}
-	return logStats, nil
+	}, nil
 }
 
 // Close shuts down the HTTP server.

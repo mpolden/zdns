@@ -127,9 +127,15 @@ Metrics:
 $ curl 'http://127.0.0.1:8053/metric/v1/' | jq .
 {
   "summary": {
-    "since": "2020-01-05T00:58:49Z",
-    "total": 2307,
-    "hijacked": 867
+    "log": {
+      "since": "2020-01-05T00:58:49Z",
+      "total": 3816,
+      "hijacked": 874
+    },
+    "cache": {
+      "size": 845,
+      "capacity": 4096
+    }
   },
   "requests": [
     {

@@ -47,6 +47,12 @@ type Value struct {
 	msg       *dns.Msg
 }
 
+// Stats contains cache statistics.
+type Stats struct {
+	Size     int
+	Capacity int
+}
+
 // Rcode returns the response code of the cached value v.
 func (v *Value) Rcode() int { return v.msg.Rcode }
 
@@ -226,6 +232,16 @@ func (c *Cache) Set(key uint32, msg *dns.Msg) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.set(key, msg)
+}
+
+// Stats returns cache statistics.
+func (c *Cache) Stats() Stats {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return Stats{
+		Capacity: c.capacity,
+		Size:     len(c.values),
+	}
 }
 
 func (c *Cache) set(key uint32, msg *dns.Msg) bool {

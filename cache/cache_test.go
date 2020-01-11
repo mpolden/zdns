@@ -453,6 +453,18 @@ func TestCacheWithBackend(t *testing.T) {
 	}
 }
 
+func TestCacheStats(t *testing.T) {
+	c := New(10, nil)
+	msg := newA("example.com.", 60, net.ParseIP("192.0.2.1"))
+	c.Set(1, msg)
+	c.Set(2, msg)
+	want := Stats{Capacity: 10, Size: 2}
+	got := c.Stats()
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Stats() = %+v, want %+v", got, want)
+	}
+}
+
 func BenchmarkNewKey(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		NewKey("key", 1, 1)
