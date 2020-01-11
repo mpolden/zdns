@@ -23,7 +23,7 @@ type Logger struct {
 	db     *Client
 	wg     sync.WaitGroup
 	now    func() time.Time
-	Logger *log.Logger
+	logger *log.Logger
 }
 
 // Entry represents a DNS request log entry.
@@ -37,18 +37,19 @@ type Entry struct {
 }
 
 // NewLogger creates a new logger. Persisted entries are kept according to ttl.
-func NewLogger(db *Client, mode int, ttl time.Duration) *Logger {
-	logger := &Logger{
-		db:    db,
-		queue: make(chan Entry, 100),
-		now:   time.Now,
-		mode:  mode,
+func NewLogger(db *Client, mode int, ttl time.Duration, logger *log.Logger) *Logger {
+	l := &Logger{
+		db:     db,
+		queue:  make(chan Entry, 100),
+		now:    time.Now,
+		mode:   mode,
+		logger: logger,
 	}
 	if mode != LogDiscard {
-		logger.wg.Add(1)
-		go logger.readQueue(ttl)
+		l.wg.Add(1)
+		go l.readQueue(ttl)
 	}
-	return logger
+	return l
 }
 
 // Close consumes any outstanding log requests and closes the logger.
@@ -108,23 +109,16 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 	return entries, nil
 }
 
-func (l *Logger) printf(format string, v ...interface{}) {
-	if l.Logger == nil {
-		return
-	}
-	l.Logger.Printf(format, v...)
-}
-
 func (l *Logger) readQueue(ttl time.Duration) {
 	defer l.wg.Done()
 	for e := range l.queue {
 		if err := l.db.WriteLog(e.Time, e.RemoteAddr, e.Hijacked, e.Qtype, e.Question, e.Answers...); err != nil {
-			l.printf("write failed: %+v: %s", e, err)
+			l.logger.Printf("write failed: %+v: %s", e, err)
 		}
 		if ttl > 0 {
 			t := l.now().Add(-ttl)
 			if err := l.db.DeleteLogBefore(t); err != nil {
-				l.printf("deleting log entries before %v failed: %s", t, err)
+				l.logger.Printf("deleting log entries before %v failed: %s", t, err)
 			}
 		}
 	}

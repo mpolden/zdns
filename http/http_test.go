@@ -36,7 +36,7 @@ func testServer() (*httptest.Server, *Server) {
 		panic(err)
 	}
 	stdLogger := log.New(ioutil.Discard, "", 0)
-	logger := sql.NewLogger(db, sql.LogAll, 0)
+	logger := sql.NewLogger(db, sql.LogAll, 0, stdLogger)
 	cache := cache.New(10, nil)
 	server := Server{logger: stdLogger, sqlLogger: logger, cache: cache}
 	return httptest.NewServer(server.handler()), &server

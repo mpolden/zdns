@@ -1,15 +1,19 @@
 package sql
 
 import (
+	"io/ioutil"
+	"log"
 	"net"
 	"reflect"
 	"testing"
 	"time"
 )
 
+var logger = log.New(ioutil.Discard, "", 0)
+
 func TestRecord(t *testing.T) {
 	client := testClient()
-	logger := NewLogger(client, LogAll, 0)
+	logger := NewLogger(client, LogAll, 0, logger)
 	logger.Record(net.IPv4(192, 0, 2, 100), false, 1, "example.com.", "192.0.2.1", "192.0.2.2")
 	// Flush queue
 	if err := logger.Close(); err != nil {
@@ -42,7 +46,7 @@ func TestMode(t *testing.T) {
 		{goodHost, net.IPv4(192, 0, 2, 100), false, LogDiscard, false},
 	}
 	for i, tt := range tests {
-		logger := NewLogger(testClient(), tt.mode, 0)
+		logger := NewLogger(testClient(), tt.mode, 0, logger)
 		logger.mode = tt.mode
 		logger.Record(tt.remoteAddr, tt.hijacked, 1, tt.question)
 		if err := logger.Close(); err != nil { // Flush
@@ -59,7 +63,7 @@ func TestMode(t *testing.T) {
 }
 
 func TestAnswerMerging(t *testing.T) {
-	logger := NewLogger(testClient(), LogAll, 0)
+	logger := NewLogger(testClient(), LogAll, 0, logger)
 	now := time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)
 	logger.now = func() time.Time { return now }
 	logger.Record(net.IPv4(192, 0, 2, 100), true, 1, "example.com.", "192.0.2.1", "192.0.2.2")
@@ -95,7 +99,7 @@ func TestAnswerMerging(t *testing.T) {
 }
 
 func TestLogPruning(t *testing.T) {
-	logger := NewLogger(testClient(), LogAll, time.Hour)
+	logger := NewLogger(testClient(), LogAll, time.Hour, logger)
 	defer logger.Close()
 	tt := time.Now()
 	logger.now = func() time.Time { return tt }

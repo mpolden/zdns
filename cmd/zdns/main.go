@@ -90,7 +90,7 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 		fatal(err)
 
 		// Logger
-		sqlLogger = sql.NewLogger(sqlClient, config.DNS.LogMode, config.DNS.LogTTL)
+		sqlLogger = sql.NewLogger(sqlClient, config.DNS.LogMode, config.DNS.LogTTL, logger)
 		sigHandler.OnClose(sqlLogger)
 
 		// Cache
