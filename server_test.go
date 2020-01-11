@@ -2,6 +2,7 @@ package zdns
 
 import (
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,6 @@ import (
 	"github.com/mpolden/zdns/cache"
 	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
-	"github.com/mpolden/zdns/log"
 )
 
 const hostsFile1 = `
@@ -28,6 +28,12 @@ const hostsFile2 = `
 192.0.2.5   badhost5
 192.0.2.6   badhost6
 `
+
+type testLogger struct{}
+
+func (l *testLogger) Record(net.IP, bool, uint16, string, ...string) {}
+
+func (l *testLogger) Close() error { return nil }
 
 func httpHandler(t *testing.T, response string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,15 +102,13 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 	if err := config.load(); err != nil {
 		t.Fatal(err)
 	}
-	logger, err := log.New(ioutil.Discard, "", log.RecordOptions{})
+	logger := log.New(ioutil.Discard, "", 0)
+	queryLogger := &testLogger{}
+	proxy, err := dns.NewProxy(cache.New(0, nil), nil, logger, queryLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy, err := dns.NewProxy(cache.New(0, nil), nil, logger)
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv, err = NewServer(logger, proxy, config)
+	srv, err = NewServer(proxy, config, logger)
 	if err != nil {
 		defer cleanup()
 		t.Fatal(err)
@@ -168,7 +172,7 @@ func TestNonFqdn(t *testing.T) {
 }
 
 func TestHijack(t *testing.T) {
-	log, _ := log.New(ioutil.Discard, "", log.RecordOptions{})
+	logger := log.New(ioutil.Discard, "", 0)
 	s := &Server{
 		Config: Config{},
 		hosts: hosts.Hosts{
@@ -177,7 +181,7 @@ func TestHijack(t *testing.T) {
 				{IP: net.ParseIP("2001:db8::1")},
 			},
 		},
-		logger: log,
+		logger: logger,
 	}
 
 	var tests = []struct {

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof" // Registers debug handlers as a side effect.
@@ -10,15 +11,16 @@ import (
 
 	"github.com/mpolden/zdns/cache"
 	"github.com/mpolden/zdns/dns/dnsutil"
-	"github.com/mpolden/zdns/log"
+	"github.com/mpolden/zdns/sql"
 )
 
 // A Server defines paramaters for running an HTTP server. The HTTP server serves an API for inspecting cache contents
 // and request log.
 type Server struct {
-	cache  *cache.Cache
-	logger *log.Logger
-	server *http.Server
+	cache     *cache.Cache
+	logger    *log.Logger
+	sqlLogger *sql.Logger
+	server    *http.Server
 }
 
 type entry struct {
@@ -39,12 +41,13 @@ type httpError struct {
 }
 
 // NewServer creates a new HTTP server, serving logs from the given logger and listening on addr.
-func NewServer(logger *log.Logger, cache *cache.Cache, addr string) *Server {
+func NewServer(cache *cache.Cache, sqlLogger *sql.Logger, logger *log.Logger, addr string) *Server {
 	server := &http.Server{Addr: addr}
 	s := &Server{
-		cache:  cache,
-		logger: logger,
-		server: server,
+		cache:     cache,
+		logger:    logger,
+		sqlLogger: sqlLogger,
+		server:    server,
 	}
 	s.server.Handler = s.handler()
 	return s
@@ -94,7 +97,7 @@ func (s *Server) cacheResetHandler(w http.ResponseWriter, r *http.Request) (inte
 }
 
 func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	logEntries, err := s.logger.Get(listCountFrom(r))
+	logEntries, err := s.sqlLogger.Get(listCountFrom(r))
 	if err != nil {
 		return nil, &httpError{
 			err:    err,

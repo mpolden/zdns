@@ -2,6 +2,7 @@ package dns
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -32,27 +33,27 @@ type Handler func(*Request) *Reply
 
 // Proxy represents a DNS proxy.
 type Proxy struct {
-	Handler Handler
-	cache   *cache.Cache
-	logger  logger
-	server  *dns.Server
-	client  *dnsutil.Client
-	mu      sync.RWMutex
+	Handler   Handler
+	cache     *cache.Cache
+	logger    *log.Logger
+	dnsLogger logger
+	server    *dns.Server
+	client    *dnsutil.Client
+	mu        sync.RWMutex
 }
 
 type logger interface {
-	Print(...interface{})
-	Printf(string, ...interface{})
 	Record(net.IP, bool, uint16, string, ...string)
 	Close() error
 }
 
 // NewProxy creates a new DNS proxy.
-func NewProxy(cache *cache.Cache, client *dnsutil.Client, logger logger) (*Proxy, error) {
+func NewProxy(cache *cache.Cache, client *dnsutil.Client, logger *log.Logger, dnsLogger logger) (*Proxy, error) {
 	return &Proxy{
-		logger: logger,
-		cache:  cache,
-		client: client,
+		logger:    logger,
+		dnsLogger: dnsLogger,
+		cache:     cache,
+		client:    client,
 	}, nil
 }
 
@@ -129,7 +130,9 @@ func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 	default:
 		panic(fmt.Sprintf("unexpected remote address type %T", v))
 	}
-	p.logger.Record(ip, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, dnsutil.Answers(msg)...)
+	if p.dnsLogger != nil {
+		p.dnsLogger.Record(ip, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, dnsutil.Answers(msg)...)
+	}
 	w.WriteMsg(msg)
 }
 

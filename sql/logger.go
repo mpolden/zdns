@@ -1,32 +1,29 @@
-package log
+package sql
 
 import (
-	"io"
 	"log"
 	"net"
 	"sync"
 	"time"
-
-	"github.com/mpolden/zdns/sql"
 )
 
 const (
-	// ModeDiscard disables logging of DNS requests.
-	ModeDiscard = iota
-	// ModeAll logs all DNS requests.
-	ModeAll
-	// ModeHijacked only logs hijacked DNS requests.
-	ModeHijacked
+	// LogDiscard disables logging of DNS requests.
+	LogDiscard = iota
+	// LogAll logs all DNS requests.
+	LogAll
+	// LogHijacked only logs hijacked DNS requests.
+	LogHijacked
 )
 
-// Logger wraps a standard log.Logger and an optional log database.
+// Logger is a logs DNS requests to a SQL database.
 type Logger struct {
-	*log.Logger
-	mode  int
-	queue chan Entry
-	db    *sql.Client
-	wg    sync.WaitGroup
-	now   func() time.Time
+	mode   int
+	queue  chan Entry
+	db     *Client
+	wg     sync.WaitGroup
+	now    func() time.Time
+	Logger *log.Logger
 }
 
 // RecordOptions configures recording of DNS requests.
@@ -46,25 +43,19 @@ type Entry struct {
 	Answers    []string
 }
 
-// New creates a new logger, writing log output to writer w prefixed with prefix. Persisted logging behaviour is
-// controller by options.
-func New(w io.Writer, prefix string, options RecordOptions) (*Logger, error) {
+// NewLogger creates a new logger. Persisted entries are kept according to ttl.
+func NewLogger(db *Client, mode int, ttl time.Duration) *Logger {
 	logger := &Logger{
-		Logger: log.New(w, prefix, 0),
-		queue:  make(chan Entry, 100),
-		now:    time.Now,
-		mode:   options.Mode,
+		db:    db,
+		queue: make(chan Entry, 100),
+		now:   time.Now,
+		mode:  mode,
 	}
-	var err error
-	if options.Database != "" {
-		logger.db, err = sql.New(options.Database)
-		if err != nil {
-			return nil, err
-		}
+	if mode != LogDiscard {
+		logger.wg.Add(1)
+		go logger.readQueue(ttl)
 	}
-	logger.wg.Add(1)
-	go logger.readQueue(options.TTL)
-	return logger, nil
+	return logger
 }
 
 // Close consumes any outstanding log requests and closes the logger.
@@ -79,10 +70,10 @@ func (l *Logger) Record(remoteAddr net.IP, hijacked bool, qtype uint16, question
 	if l.db == nil {
 		return
 	}
-	if l.mode == ModeDiscard {
+	if l.mode == LogDiscard {
 		return
 	}
-	if l.mode == ModeHijacked && !hijacked {
+	if l.mode == LogHijacked && !hijacked {
 		return
 	}
 	l.queue <- Entry{
@@ -124,16 +115,23 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 	return entries, nil
 }
 
+func (l *Logger) printf(format string, v ...interface{}) {
+	if l.Logger == nil {
+		return
+	}
+	l.Logger.Printf(format, v...)
+}
+
 func (l *Logger) readQueue(ttl time.Duration) {
 	defer l.wg.Done()
 	for e := range l.queue {
 		if err := l.db.WriteLog(e.Time, e.RemoteAddr, e.Hijacked, e.Qtype, e.Question, e.Answers...); err != nil {
-			l.Printf("write failed: %+v: %s", e, err)
+			l.printf("write failed: %+v: %s", e, err)
 		}
 		if ttl > 0 {
 			t := l.now().Add(-ttl)
 			if err := l.db.DeleteLogBefore(t); err != nil {
-				l.Printf("deleting log entries before %v failed: %s", t, err)
+				l.printf("deleting log entries before %v failed: %s", t, err)
 			}
 		}
 	}

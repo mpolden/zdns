@@ -2,13 +2,12 @@ package signal
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/mpolden/zdns/log"
 )
 
 type reloaderCloser struct {
@@ -47,10 +46,7 @@ func (rc *reloaderCloser) reset() {
 }
 
 func TestHandler(t *testing.T) {
-	logger, err := log.New(ioutil.Discard, "", log.RecordOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	logger := log.New(ioutil.Discard, "", 0)
 	h := NewHandler(make(chan os.Signal, 1), logger)
 
 	rc := &reloaderCloser{}

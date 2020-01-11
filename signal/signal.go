@@ -2,11 +2,10 @@ package signal
 
 import (
 	"io"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/mpolden/zdns/log"
 )
 
 // Reloader is the interface for types that need to act on a reload signal.

@@ -3,6 +3,7 @@ package zdns
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,7 +14,6 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/hosts"
-	"github.com/mpolden/zdns/log"
 )
 
 const (
@@ -37,7 +37,7 @@ type Server struct {
 }
 
 // NewServer returns a new server configured according to config.
-func NewServer(logger *log.Logger, proxy *dns.Proxy, config Config) (*Server, error) {
+func NewServer(proxy *dns.Proxy, config Config, logger *log.Logger) (*Server, error) {
 	server := &Server{
 		Config:     config,
 		done:       make(chan bool, 1),

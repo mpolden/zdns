@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -14,8 +15,8 @@ import (
 	"github.com/mpolden/zdns/dns"
 	"github.com/mpolden/zdns/dns/dnsutil"
 	"github.com/mpolden/zdns/http"
-	"github.com/mpolden/zdns/log"
 	"github.com/mpolden/zdns/signal"
+	"github.com/mpolden/zdns/sql"
 )
 
 const (
@@ -75,42 +76,45 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 	config, err := readConfig(*confFile)
 	fatal(err)
 
-	// Logger
-	logger, err := log.New(out, logPrefix, log.RecordOptions{
-		Mode:     config.DNS.LogMode,
-		Database: config.DNS.LogDatabase,
-		TTL:      config.DNS.LogTTL,
-	})
-	fatal(err)
-
-	// Signal handling
+	// Logging and signal handling
+	logger := log.New(out, logPrefix, log.Lshortfile)
 	sigHandler := signal.NewHandler(sig, logger)
-	sigHandler.OnClose(logger)
 
-	// Client
-	client := dnsutil.NewClient(config.Resolver.Protocol, config.Resolver.Timeout, config.DNS.Resolvers...)
+	// SQL backends
+	var sqlLogger *sql.Logger
+	if config.DNS.LogDatabase != "" {
+		sqlClient, err := sql.New(config.DNS.LogDatabase)
+		fatal(err)
+
+		// Logger
+		sqlLogger = sql.NewLogger(sqlClient, config.DNS.LogMode, config.DNS.LogTTL)
+		sigHandler.OnClose(sqlLogger)
+	}
+
+	// DNS client
+	dnsClient := dnsutil.NewClient(config.Resolver.Protocol, config.Resolver.Timeout, config.DNS.Resolvers...)
 
 	// Cache
-	var cclient *dnsutil.Client
+	var cacheDNS *dnsutil.Client
 	if config.DNS.CachePrefetch {
-		cclient = client
+		cacheDNS = dnsClient
 	}
-	cache := cache.New(config.DNS.CacheSize, cclient)
+	cache := cache.New(config.DNS.CacheSize, cacheDNS)
 
 	// DNS server
-	proxy, err := dns.NewProxy(cache, client, logger)
+	proxy, err := dns.NewProxy(cache, dnsClient, logger, sqlLogger)
 	fatal(err)
 	sigHandler.OnClose(proxy)
 
-	dnsSrv, err := zdns.NewServer(logger, proxy, config)
+	dnsSrv, err := zdns.NewServer(proxy, config, logger)
 	fatal(err)
 	sigHandler.OnReload(dnsSrv)
 	sigHandler.OnClose(dnsSrv)
-
 	servers := []server{dnsSrv}
+
 	// HTTP server
 	if config.DNS.ListenHTTP != "" {
-		httpSrv := http.NewServer(logger, cache, config.DNS.ListenHTTP)
+		httpSrv := http.NewServer(cache, sqlLogger, logger, config.DNS.ListenHTTP)
 		sigHandler.OnClose(httpSrv)
 		servers = append(servers, httpSrv)
 	}

@@ -3,6 +3,7 @@ package dns
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"reflect"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
 	"github.com/mpolden/zdns/dns/dnsutil"
-	"github.com/mpolden/zdns/log"
 )
 
 type dnsWriter struct{ lastReply *dns.Msg }
@@ -63,15 +63,16 @@ func (e *testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Dura
 	return r.answer, time.Second, nil
 }
 
+type testLogger struct{}
+
+func (l *testLogger) Record(net.IP, bool, uint16, string, ...string) {}
+
+func (l *testLogger) Close() error { return nil }
+
 func testProxy(t *testing.T) *Proxy {
-	log, err := log.New(ioutil.Discard, "", log.RecordOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	proxy, err := NewProxy(cache.New(0, nil), nil, log)
+	logger := log.New(ioutil.Discard, "", 0)
+	dnsLogger := &testLogger{}
+	proxy, err := NewProxy(cache.New(0, nil), nil, logger, dnsLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
