@@ -58,10 +58,18 @@ func count(t *testing.T, client *Client, query string, args ...interface{}) int 
 	return rows
 }
 
+func writeTests(c *Client, t *testing.T) {
+	for i, tt := range tests {
+		if err := c.writeLog(tt.t, tt.remoteAddr, tt.hijacked, tt.qtype, tt.question, tt.answers...); err != nil {
+			t.Errorf("#%d: WriteLog(%q, %s, %t, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.hijacked, tt.qtype, tt.question, tt.answers, err)
+		}
+	}
+}
+
 func TestWriteLog(t *testing.T) {
 	c := testClient()
 	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.hijacked, tt.qtype, tt.question, tt.answers...); err != nil {
+		if err := c.writeLog(tt.t, tt.remoteAddr, tt.hijacked, tt.qtype, tt.question, tt.answers...); err != nil {
 			t.Errorf("#%d: WriteLog(%q, %s, %t, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.hijacked, tt.qtype, tt.question, tt.answers, err)
 		}
 		for _, rowCount := range tt.rowCounts {
@@ -75,12 +83,8 @@ func TestWriteLog(t *testing.T) {
 
 func TestReadLog(t *testing.T) {
 	c := testClient()
-	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.hijacked, tt.qtype, tt.question, tt.answers...); err != nil {
-			t.Fatalf("#%d: WriteLog(%q, %s, %t, %d, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.hijacked, tt.qtype, tt.question, tt.answers, err)
-		}
-	}
-	allEntries := [][]LogEntry{
+	writeTests(c, t)
+	allEntries := [][]logEntry{
 		{{ID: 8, Question: "baz.example.com", Qtype: 28, Time: 1560647100, RemoteAddr: net.IPv4(192, 0, 2, 102)}},
 		{{ID: 7, Question: "baz.example.com", Qtype: 28, Answer: "2001:db8::4", Time: 1560641700, RemoteAddr: net.IPv4(192, 0, 2, 102)}},
 		{
@@ -94,11 +98,11 @@ func TestReadLog(t *testing.T) {
 		{{ID: 1, Question: "foo.example.com", Qtype: 1, Answer: "192.0.2.1", Time: 1560636910, RemoteAddr: net.IPv4(192, 0, 2, 100)}},
 	}
 	for n := 1; n <= len(allEntries); n++ {
-		var want []LogEntry
+		var want []logEntry
 		for _, entries := range allEntries[:n] {
 			want = append(want, entries...)
 		}
-		got, err := c.ReadLog(n)
+		got, err := c.readLog(n)
 		if len(got) != len(want) {
 			t.Errorf("len(got) = %d, want %d", len(got), len(want))
 		}
@@ -118,17 +122,13 @@ func TestReadLog(t *testing.T) {
 
 func TestDeleteLogBefore(t *testing.T) {
 	c := testClient()
-	for i, tt := range tests {
-		if err := c.WriteLog(tt.t, tt.remoteAddr, tt.hijacked, tt.qtype, tt.question, tt.answers...); err != nil {
-			t.Fatalf("#%d: WriteLog(%s, %s, %t, %q, %q) = %s, want nil", i, tt.t, tt.remoteAddr.String(), tt.hijacked, tt.question, tt.answers, err)
-		}
-	}
+	writeTests(c, t)
 	u := tests[1].t.Add(time.Second)
-	if err := c.DeleteLogBefore(u); err != nil {
+	if err := c.deleteLogBefore(u); err != nil {
 		t.Fatalf("DeleteBefore(%s) = %v, want %v", u, err, nil)
 	}
 
-	want := []LogEntry{
+	want := []logEntry{
 		{ID: 8, Question: "baz.example.com", Qtype: 28, Time: 1560647100, RemoteAddr: net.IPv4(192, 0, 2, 102)},
 		{ID: 7, Question: "baz.example.com", Qtype: 28, Answer: "2001:db8::4", Time: 1560641700, RemoteAddr: net.IPv4(192, 0, 2, 102)},
 		{ID: 6, Question: "bar.example.com", Qtype: 28, Answer: "2001:db8::3", Time: 1560641700, RemoteAddr: net.IPv4(192, 0, 2, 102)},
@@ -138,7 +138,7 @@ func TestDeleteLogBefore(t *testing.T) {
 		{ID: 3, Question: "bar.example.com", Qtype: 1, Answer: "192.0.2.2", Time: 1560637050, RemoteAddr: net.IPv4(192, 0, 2, 101)},
 	}
 	n := 10
-	got, err := c.ReadLog(n)
+	got, err := c.readLog(n)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("ReadLog(%d) = (%+v, %v), want (%+v, %v)", n, got, err, want, nil)
 	}
@@ -155,7 +155,7 @@ func TestDeleteLogBefore(t *testing.T) {
 
 	// Delete logs in the far past which matches 0 entries.
 	oneYear := time.Hour * 8760
-	if err := c.DeleteLogBefore(u.Add(-oneYear)); err != nil {
+	if err := c.deleteLogBefore(u.Add(-oneYear)); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -169,12 +169,12 @@ func TestInterleavedRW(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for range ch {
-			err = c.WriteLog(time.Now(), net.IPv4(127, 0, 0, 1), false, 1, "example.com.", "192.0.2.1")
+			err = c.writeLog(time.Now(), net.IPv4(127, 0, 0, 1), false, 1, "example.com.", "192.0.2.1")
 		}
 	}()
 	ch <- true
 	close(ch)
-	if _, err := c.ReadLog(1); err != nil {
+	if _, err := c.readLog(1); err != nil {
 		t.Fatal(err)
 	}
 	wg.Wait()

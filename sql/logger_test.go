@@ -15,7 +15,7 @@ func TestRecord(t *testing.T) {
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)
 	}
-	logEntries, err := logger.client.ReadLog(1)
+	logEntries, err := logger.client.readLog(1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestMode(t *testing.T) {
 		if err := logger.Close(); err != nil { // Flush
 			t.Fatal(err)
 		}
-		entries, err := logger.Get(1)
+		entries, err := logger.Read(1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,11 +69,11 @@ func TestAnswerMerging(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Multi-answer log entries are merged
-	got, err := logger.Get(2)
+	got, err := logger.Read(2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Entry{
+	want := []LogEntry{
 		{
 			Time:       now,
 			RemoteAddr: net.IPv4(192, 0, 2, 100),
@@ -103,10 +103,10 @@ func TestLogPruning(t *testing.T) {
 
 	// Wait until queue is flushed
 	ts := time.Now()
-	var entries []Entry
+	var entries []LogEntry
 	var err error
 	for len(entries) == 0 {
-		entries, err = logger.Get(1)
+		entries, err = logger.Read(1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +121,7 @@ func TestLogPruning(t *testing.T) {
 	// Trigger pruning by recording another entry
 	logger.Record(net.IPv4(192, 0, 2, 100), false, 1, "2.example.com.", "192.0.2.2")
 	for len(entries) > 1 {
-		entries, err = logger.Get(2)
+		entries, err = logger.Read(2)
 		if err != nil {
 			t.Fatal(err)
 		}

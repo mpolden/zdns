@@ -95,7 +95,7 @@ func (s *Server) cacheResetHandler(w http.ResponseWriter, r *http.Request) (inte
 }
 
 func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	logEntries, err := s.logger.Get(listCountFrom(r))
+	logEntries, err := s.logger.Read(listCountFrom(r))
 	if err != nil {
 		return nil, &httpError{
 			err:    err,

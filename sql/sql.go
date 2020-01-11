@@ -68,8 +68,7 @@ type Client struct {
 	mu sync.RWMutex
 }
 
-// LogEntry represents an entry in the log.
-type LogEntry struct {
+type logEntry struct {
 	ID         int64  `db:"id"`
 	Time       int64  `db:"time"`
 	RemoteAddr []byte `db:"remote_addr"`
@@ -100,8 +99,7 @@ func New(filename string) (*Client, error) {
 	return &Client{db: db}, nil
 }
 
-// ReadLog reads the n most recent entries from the log.
-func (c *Client) ReadLog(n int) ([]LogEntry, error) {
+func (c *Client) readLog(n int) ([]logEntry, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	query := `
@@ -121,7 +119,7 @@ LEFT  JOIN rr_answer ON rr_answer.id = log_rr_answer.rr_answer_id
 WHERE log.id IN (SELECT id FROM log ORDER BY time DESC, id DESC LIMIT $1)
 ORDER BY time DESC, rr_answer.id DESC
 `
-	var entries []LogEntry
+	var entries []logEntry
 	err := c.db.Select(&entries, query, n)
 	return entries, err
 }
@@ -139,8 +137,7 @@ func getOrInsert(tx *sqlx.Tx, table, column string, value interface{}) (int64, e
 	return id, err
 }
 
-// WriteLog writes a new entry to the log.
-func (c *Client) WriteLog(time time.Time, remoteAddr []byte, hijacked bool, qtype uint16, question string, answers ...string) error {
+func (c *Client) writeLog(time time.Time, remoteAddr []byte, hijacked bool, qtype uint16, question string, answers ...string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	tx, err := c.db.Beginx()
@@ -188,8 +185,7 @@ func (c *Client) WriteLog(time time.Time, remoteAddr []byte, hijacked bool, qtyp
 	return tx.Commit()
 }
 
-// DeleteLogBefore deletes all log entries occurring before time t.
-func (c *Client) DeleteLogBefore(t time.Time) (err error) {
+func (c *Client) deleteLogBefore(t time.Time) (err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	tx, err := c.db.Beginx()
