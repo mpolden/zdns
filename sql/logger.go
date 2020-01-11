@@ -26,13 +26,6 @@ type Logger struct {
 	Logger *log.Logger
 }
 
-// RecordOptions configures recording of DNS requests.
-type RecordOptions struct {
-	Database string
-	Mode     int
-	TTL      time.Duration
-}
-
 // Entry represents a DNS request log entry.
 type Entry struct {
 	Time       time.Time
