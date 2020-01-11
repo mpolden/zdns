@@ -2,7 +2,6 @@ package http
 
 import (
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -35,10 +34,9 @@ func testServer() (*httptest.Server, *Server) {
 	if err != nil {
 		panic(err)
 	}
-	stdLogger := log.New(ioutil.Discard, "", 0)
-	logger := sql.NewLogger(db, sql.LogAll, 0, stdLogger)
+	logger := sql.NewLogger(db, sql.LogAll, 0)
 	cache := cache.New(10, nil)
-	server := Server{logger: stdLogger, sqlLogger: logger, cache: cache}
+	server := Server{logger: logger, cache: cache}
 	return httptest.NewServer(server.handler()), &server
 }
 
@@ -79,9 +77,9 @@ func httpDelete(url, body string) (*http.Response, string, error) {
 func TestRequests(t *testing.T) {
 	httpSrv, srv := testServer()
 	defer httpSrv.Close()
-	srv.sqlLogger.Record(net.IPv4(127, 0, 0, 42), false, 1, "example.com.", "192.0.2.100", "192.0.2.101")
-	srv.sqlLogger.Record(net.IPv4(127, 0, 0, 254), true, 28, "example.com.", "2001:db8::1")
-	srv.sqlLogger.Close() // Flush
+	srv.logger.Record(net.IPv4(127, 0, 0, 42), false, 1, "example.com.", "192.0.2.100", "192.0.2.101")
+	srv.logger.Record(net.IPv4(127, 0, 0, 254), true, 28, "example.com.", "2001:db8::1")
+	srv.logger.Close() // Flush
 	srv.cache.Set(1, newA("1.example.com.", 60, net.IPv4(192, 0, 2, 200)))
 	srv.cache.Set(2, newA("2.example.com.", 30, net.IPv4(192, 0, 2, 201)))
 

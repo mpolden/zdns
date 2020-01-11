@@ -16,6 +16,10 @@ import (
 	"github.com/mpolden/zdns/hosts"
 )
 
+func init() {
+	log.SetOutput(ioutil.Discard)
+}
+
 const hostsFile1 = `
 192.0.2.1   badhost1
 2001:db8::1 badhost1
@@ -102,13 +106,12 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 	if err := config.load(); err != nil {
 		t.Fatal(err)
 	}
-	logger := log.New(ioutil.Discard, "", 0)
 	queryLogger := &testLogger{}
-	proxy, err := dns.NewProxy(cache.New(0, nil), nil, logger, queryLogger)
+	proxy, err := dns.NewProxy(cache.New(0, nil), nil, queryLogger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv, err = NewServer(proxy, config, logger)
+	srv, err = NewServer(proxy, config)
 	if err != nil {
 		defer cleanup()
 		t.Fatal(err)
@@ -178,7 +181,6 @@ func TestNonFqdn(t *testing.T) {
 }
 
 func TestHijack(t *testing.T) {
-	logger := log.New(ioutil.Discard, "", 0)
 	s := &Server{
 		Config: Config{},
 		hosts: hosts.Hosts{
@@ -187,7 +189,6 @@ func TestHijack(t *testing.T) {
 				{IP: net.ParseIP("2001:db8::1")},
 			},
 		},
-		logger: logger,
 	}
 
 	var tests = []struct {

@@ -29,7 +29,6 @@ const (
 type Server struct {
 	Config     Config
 	hosts      hosts.Hosts
-	logger     *log.Logger
 	proxy      *dns.Proxy
 	done       chan bool
 	mu         sync.RWMutex
@@ -37,11 +36,10 @@ type Server struct {
 }
 
 // NewServer returns a new server configured according to config.
-func NewServer(proxy *dns.Proxy, config Config, logger *log.Logger) (*Server, error) {
+func NewServer(proxy *dns.Proxy, config Config) (*Server, error) {
 	server := &Server{
 		Config:     config,
 		done:       make(chan bool, 1),
-		logger:     logger,
 		proxy:      proxy,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
@@ -132,7 +130,7 @@ func (s *Server) loadHosts() {
 			var err error
 			hs1, err = s.readHosts(h.URL)
 			if err != nil {
-				s.logger.Printf("failed to read hosts from %s: %s", h.URL, err)
+				log.Printf("failed to read hosts from %s: %s", h.URL, err)
 				continue
 			}
 		}
@@ -140,7 +138,7 @@ func (s *Server) loadHosts() {
 			for name, ipAddrs := range hs1 {
 				hs[name] = ipAddrs
 			}
-			s.logger.Printf("loaded %d hosts from %s", len(hs1), src)
+			log.Printf("loaded %d hosts from %s", len(hs1), src)
 		} else {
 			removed := 0
 			for hostToRemove := range hs1 {
@@ -150,14 +148,14 @@ func (s *Server) loadHosts() {
 				}
 			}
 			if removed > 0 {
-				s.logger.Printf("removed %d hosts from %s", removed, src)
+				log.Printf("removed %d hosts from %s", removed, src)
 			}
 		}
 	}
 	s.mu.Lock()
 	s.hosts = hs
 	s.mu.Unlock()
-	s.logger.Printf("loaded %d hosts in total", len(hs))
+	log.Printf("loaded %d hosts in total", len(hs))
 }
 
 // Reload updates hosts entries of Server s.
@@ -211,6 +209,6 @@ func (s *Server) hijack(r *dns.Request) *dns.Reply {
 
 // ListenAndServe starts a server on configured address and protocol.
 func (s *Server) ListenAndServe() error {
-	s.logger.Printf("dns server listening on %s [%s]", s.Config.DNS.Listen, s.Config.DNS.Protocol)
+	log.Printf("dns server listening on %s [%s]", s.Config.DNS.Listen, s.Config.DNS.Protocol)
 	return s.proxy.ListenAndServe(s.Config.DNS.Listen, s.Config.DNS.Protocol)
 }

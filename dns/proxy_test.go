@@ -15,6 +15,10 @@ import (
 	"github.com/mpolden/zdns/dns/dnsutil"
 )
 
+func init() {
+	log.SetOutput(ioutil.Discard)
+}
+
 type dnsWriter struct{ lastReply *dns.Msg }
 
 func (w *dnsWriter) LocalAddr() net.Addr { return nil }
@@ -70,9 +74,8 @@ func (l *testLogger) Record(net.IP, bool, uint16, string, ...string) {}
 func (l *testLogger) Close() error { return nil }
 
 func testProxy(t *testing.T) *Proxy {
-	logger := log.New(ioutil.Discard, "", 0)
 	dnsLogger := &testLogger{}
-	proxy, err := NewProxy(cache.New(0, nil), nil, logger, dnsLogger)
+	proxy, err := NewProxy(cache.New(0, nil), nil, dnsLogger)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -35,7 +35,6 @@ type Handler func(*Request) *Reply
 type Proxy struct {
 	Handler   Handler
 	cache     *cache.Cache
-	logger    *log.Logger
 	dnsLogger logger
 	server    *dns.Server
 	client    *dnsutil.Client
@@ -48,9 +47,8 @@ type logger interface {
 }
 
 // NewProxy creates a new DNS proxy.
-func NewProxy(cache *cache.Cache, client *dnsutil.Client, logger *log.Logger, dnsLogger logger) (*Proxy, error) {
+func NewProxy(cache *cache.Cache, client *dnsutil.Client, dnsLogger logger) (*Proxy, error) {
 	return &Proxy{
-		logger:    logger,
 		dnsLogger: dnsLogger,
 		cache:     cache,
 		client:    client,
@@ -154,7 +152,7 @@ func (p *Proxy) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		p.writeMsg(w, rr, false)
 		p.cache.Set(key, rr)
 	} else {
-		p.logger.Print(err)
+		log.Print(err)
 		dns.HandleFailed(w, r)
 	}
 }

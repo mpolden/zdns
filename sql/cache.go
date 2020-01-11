@@ -28,11 +28,10 @@ type Cache struct {
 }
 
 // NewCache creates a new cache using client to persist entries.
-func NewCache(client *Client, logger *log.Logger) *Cache {
+func NewCache(client *Client) *Cache {
 	c := &Cache{
 		queue:  make(chan query, 1024),
 		client: client,
-		logger: logger,
 	}
 	go c.readQueue()
 	return c
@@ -58,7 +57,7 @@ func (c *Cache) Read() []cache.Value {
 	c.wg.Wait()
 	entries, err := c.client.readCache()
 	if err != nil {
-		c.logger.Print(err)
+		log.Print(err)
 		return nil
 	}
 	values := make([]cache.Value, 0, len(entries))

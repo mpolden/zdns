@@ -1,8 +1,6 @@
 package signal
 
 import (
-	"io/ioutil"
-	"log"
 	"os"
 	"sync"
 	"syscall"
@@ -46,8 +44,7 @@ func (rc *reloaderCloser) reset() {
 }
 
 func TestHandler(t *testing.T) {
-	logger := log.New(ioutil.Discard, "", 0)
-	h := NewHandler(make(chan os.Signal, 1), logger)
+	h := NewHandler(make(chan os.Signal, 1))
 
 	rc := &reloaderCloser{}
 	h.OnReload(rc)

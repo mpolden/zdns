@@ -1,25 +1,21 @@
 package sql
 
 import (
-	"io/ioutil"
-	"log"
 	"net"
 	"reflect"
 	"testing"
 	"time"
 )
 
-var logger = log.New(ioutil.Discard, "", 0)
-
 func TestRecord(t *testing.T) {
 	client := testClient()
-	logger := NewLogger(client, LogAll, 0, logger)
+	logger := NewLogger(client, LogAll, 0)
 	logger.Record(net.IPv4(192, 0, 2, 100), false, 1, "example.com.", "192.0.2.1", "192.0.2.2")
 	// Flush queue
 	if err := logger.Close(); err != nil {
 		t.Fatal(err)
 	}
-	logEntries, err := logger.db.ReadLog(1)
+	logEntries, err := logger.client.ReadLog(1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +42,7 @@ func TestMode(t *testing.T) {
 		{goodHost, net.IPv4(192, 0, 2, 100), false, LogDiscard, false},
 	}
 	for i, tt := range tests {
-		logger := NewLogger(testClient(), tt.mode, 0, logger)
+		logger := NewLogger(testClient(), tt.mode, 0)
 		logger.mode = tt.mode
 		logger.Record(tt.remoteAddr, tt.hijacked, 1, tt.question)
 		if err := logger.Close(); err != nil { // Flush
@@ -63,7 +59,7 @@ func TestMode(t *testing.T) {
 }
 
 func TestAnswerMerging(t *testing.T) {
-	logger := NewLogger(testClient(), LogAll, 0, logger)
+	logger := NewLogger(testClient(), LogAll, 0)
 	now := time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)
 	logger.now = func() time.Time { return now }
 	logger.Record(net.IPv4(192, 0, 2, 100), true, 1, "example.com.", "192.0.2.1", "192.0.2.2")
@@ -99,7 +95,7 @@ func TestAnswerMerging(t *testing.T) {
 }
 
 func TestLogPruning(t *testing.T) {
-	logger := NewLogger(testClient(), LogAll, time.Hour, logger)
+	logger := NewLogger(testClient(), LogAll, time.Hour)
 	defer logger.Close()
 	tt := time.Now()
 	logger.now = func() time.Time { return tt }

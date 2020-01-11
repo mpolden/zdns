@@ -17,10 +17,9 @@ import (
 // A Server defines paramaters for running an HTTP server. The HTTP server serves an API for inspecting cache contents
 // and request log.
 type Server struct {
-	cache     *cache.Cache
-	logger    *log.Logger
-	sqlLogger *sql.Logger
-	server    *http.Server
+	cache  *cache.Cache
+	logger *sql.Logger
+	server *http.Server
 }
 
 type entry struct {
@@ -41,13 +40,12 @@ type httpError struct {
 }
 
 // NewServer creates a new HTTP server, serving logs from the given logger and listening on addr.
-func NewServer(cache *cache.Cache, sqlLogger *sql.Logger, logger *log.Logger, addr string) *Server {
+func NewServer(cache *cache.Cache, logger *sql.Logger, addr string) *Server {
 	server := &http.Server{Addr: addr}
 	s := &Server{
-		cache:     cache,
-		logger:    logger,
-		sqlLogger: sqlLogger,
-		server:    server,
+		cache:  cache,
+		logger: logger,
+		server: server,
 	}
 	s.server.Handler = s.handler()
 	return s
@@ -97,7 +95,7 @@ func (s *Server) cacheResetHandler(w http.ResponseWriter, r *http.Request) (inte
 }
 
 func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	logEntries, err := s.sqlLogger.Get(listCountFrom(r))
+	logEntries, err := s.logger.Get(listCountFrom(r))
 	if err != nil {
 		return nil, &httpError{
 			err:    err,
@@ -124,7 +122,7 @@ func (s *Server) Close() error { return s.server.Shutdown(context.TODO()) }
 
 // ListenAndServe starts the HTTP server listening on the configured address.
 func (s *Server) ListenAndServe() error {
-	s.logger.Printf("http server listening on http://%s", s.server.Addr)
+	log.Printf("http server listening on http://%s", s.server.Addr)
 	err := s.server.ListenAndServe()
 	if err == http.ErrServerClosed {
 		return nil // Do not treat server closing as an error

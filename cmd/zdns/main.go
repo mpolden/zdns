@@ -77,8 +77,10 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 	fatal(err)
 
 	// Logging and signal handling
-	logger := log.New(out, logPrefix, log.Lshortfile)
-	sigHandler := signal.NewHandler(sig, logger)
+	log.SetOutput(out)
+	log.SetPrefix(logPrefix)
+	log.SetFlags(log.Lshortfile)
+	sigHandler := signal.NewHandler(sig)
 
 	// SQL backends
 	var (
@@ -90,11 +92,11 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 		fatal(err)
 
 		// Logger
-		sqlLogger = sql.NewLogger(sqlClient, config.DNS.LogMode, config.DNS.LogTTL, logger)
+		sqlLogger = sql.NewLogger(sqlClient, config.DNS.LogMode, config.DNS.LogTTL)
 		sigHandler.OnClose(sqlLogger)
 
 		// Cache
-		sqlCache = sql.NewCache(sqlClient, logger)
+		sqlCache = sql.NewCache(sqlClient)
 		sigHandler.OnClose(sqlCache)
 	}
 
@@ -115,11 +117,11 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 	}
 
 	// DNS server
-	proxy, err := dns.NewProxy(dnsCache, dnsClient, logger, sqlLogger)
+	proxy, err := dns.NewProxy(dnsCache, dnsClient, sqlLogger)
 	fatal(err)
 	sigHandler.OnClose(proxy)
 
-	dnsSrv, err := zdns.NewServer(proxy, config, logger)
+	dnsSrv, err := zdns.NewServer(proxy, config)
 	fatal(err)
 	sigHandler.OnReload(dnsSrv)
 	sigHandler.OnClose(dnsSrv)
@@ -127,7 +129,7 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 
 	// HTTP server
 	if config.DNS.ListenHTTP != "" {
-		httpSrv := http.NewServer(dnsCache, sqlLogger, logger, config.DNS.ListenHTTP)
+		httpSrv := http.NewServer(dnsCache, sqlLogger, config.DNS.ListenHTTP)
 		sigHandler.OnClose(httpSrv)
 		servers = append(servers, httpSrv)
 	}

@@ -1,8 +1,6 @@
 package sql
 
 import (
-	"io/ioutil"
-	"log"
 	"reflect"
 	"testing"
 
@@ -16,8 +14,7 @@ func TestCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := testClient()
-	logger := log.New(ioutil.Discard, "", 0)
-	c := NewCache(client, logger)
+	c := NewCache(client)
 
 	// Set and read
 	c.Set(1, v)

@@ -20,10 +20,9 @@ const (
 type Logger struct {
 	mode   int
 	queue  chan Entry
-	db     *Client
+	client *Client
 	wg     sync.WaitGroup
 	now    func() time.Time
-	logger *log.Logger
 }
 
 // Entry represents a DNS request log entry.
@@ -37,13 +36,12 @@ type Entry struct {
 }
 
 // NewLogger creates a new logger. Persisted entries are kept according to ttl.
-func NewLogger(db *Client, mode int, ttl time.Duration, logger *log.Logger) *Logger {
+func NewLogger(client *Client, mode int, ttl time.Duration) *Logger {
 	l := &Logger{
-		db:     db,
+		client: client,
 		queue:  make(chan Entry, 1024),
 		now:    time.Now,
 		mode:   mode,
-		logger: logger,
 	}
 	if mode != LogDiscard {
 		go l.readQueue(ttl)
@@ -59,9 +57,6 @@ func (l *Logger) Close() error {
 
 // Record records the given DNS request to the log database.
 func (l *Logger) Record(remoteAddr net.IP, hijacked bool, qtype uint16, question string, answers ...string) {
-	if l.db == nil {
-		return
-	}
 	if l.mode == LogDiscard {
 		return
 	}
@@ -81,7 +76,7 @@ func (l *Logger) Record(remoteAddr net.IP, hijacked bool, qtype uint16, question
 
 // Get returns the n most recent persisted log entries.
 func (l *Logger) Get(n int) ([]Entry, error) {
-	logEntries, err := l.db.ReadLog(n)
+	logEntries, err := l.client.ReadLog(n)
 	if err != nil {
 		return nil, err
 	}
@@ -110,13 +105,13 @@ func (l *Logger) Get(n int) ([]Entry, error) {
 
 func (l *Logger) readQueue(ttl time.Duration) {
 	for e := range l.queue {
-		if err := l.db.WriteLog(e.Time, e.RemoteAddr, e.Hijacked, e.Qtype, e.Question, e.Answers...); err != nil {
-			l.logger.Printf("write failed: %+v: %s", e, err)
+		if err := l.client.WriteLog(e.Time, e.RemoteAddr, e.Hijacked, e.Qtype, e.Question, e.Answers...); err != nil {
+			log.Printf("write failed: %+v: %s", e, err)
 		}
 		if ttl > 0 {
 			t := l.now().Add(-ttl)
-			if err := l.db.DeleteLogBefore(t); err != nil {
-				l.logger.Printf("deleting log entries before %v failed: %s", t, err)
+			if err := l.client.DeleteLogBefore(t); err != nil {
+				log.Printf("deleting log entries before %v failed: %s", t, err)
 			}
 		}
 		l.wg.Done()
