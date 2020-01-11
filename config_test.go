@@ -19,7 +19,7 @@ resolvers = [
 ]
 hijack_mode = "zero" # or: empty, hosts
 hosts_refresh_interval = "48h"
-log_database = "/tmp/log.db"
+database = "/tmp/log.db"
 log_mode = "all"
 log_ttl = "72h"
 
@@ -77,7 +77,7 @@ hijack = false
 		{"DNS.Resolvers[0]", conf.DNS.Resolvers[0], "192.0.2.1:53"},
 		{"DNS.Resolvers[1]", conf.DNS.Resolvers[1], "192.0.2.2:53"},
 		{"DNS.HijackMode", conf.DNS.HijackMode, "zero"},
-		{"DNS.LogDatabase", conf.DNS.LogDatabase, "/tmp/log.db"},
+		{"DNS.Database", conf.DNS.Database, "/tmp/log.db"},
 		{"DNS.LogMode", conf.DNS.LogModeString, "all"},
 		{"DNS.LogTTL", conf.DNS.LogTTLString, "72h"},
 		{"Resolver.Protocol", conf.Resolver.Protocol, "tcp-tls"},
@@ -187,7 +187,7 @@ protocol = "https"
 		{conf10, "file:///tmp/foo: timeout cannot be set for file url"},
 		{conf11, "[0.0.0.0 host1]: timeout cannot be set for inline hosts"},
 		{conf12, "invalid log mode: foo"},
-		{conf13, `log_mode = "hijacked" requires log_database to be set`},
+		{conf13, `log_mode = "hijacked" requires 'database' to be set`},
 		{conf14, "protocol https requires https scheme for resolver http://example.com"},
 	}
 	for i, tt := range tests {

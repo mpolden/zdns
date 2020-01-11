@@ -82,8 +82,8 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 
 	// SQL backends
 	var sqlLogger *sql.Logger
-	if config.DNS.LogDatabase != "" {
-		sqlClient, err := sql.New(config.DNS.LogDatabase)
+	if config.DNS.Database != "" {
+		sqlClient, err := sql.New(config.DNS.Database)
 		fatal(err)
 
 		// Logger

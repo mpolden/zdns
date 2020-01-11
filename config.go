@@ -31,7 +31,7 @@ type DNSOptions struct {
 	RefreshInterval string `toml:"hosts_refresh_interval"`
 	refreshInterval time.Duration
 	Resolvers       []string
-	LogDatabase     string `toml:"log_database"`
+	Database        string `toml:"database"`
 	LogModeString   string `toml:"log_mode"`
 	LogMode         int
 	LogTTLString    string `toml:"log_ttl"`
@@ -188,8 +188,8 @@ func (c *Config) load() error {
 	default:
 		return fmt.Errorf("invalid log mode: %s", c.DNS.LogModeString)
 	}
-	if c.DNS.LogModeString != "" && c.DNS.LogDatabase == "" {
-		return fmt.Errorf("log_mode = %q requires log_database to be set", c.DNS.LogModeString)
+	if c.DNS.LogModeString != "" && c.DNS.Database == "" {
+		return fmt.Errorf("log_mode = %q requires 'database' to be set", c.DNS.LogModeString)
 	}
 	if c.DNS.LogTTLString == "" {
 		c.DNS.LogTTLString = "0"

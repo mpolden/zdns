@@ -51,10 +51,9 @@
 #
 # hosts_refresh_interval = "48h"
 
-# Path to the log database. Configuring a path here will enable logging of DNS
-# requests to a SQLite database.
+# Path to the database. This is used for persistence, such as logging of DNS requests.
 #
-# log_database = ""
+# database = ""
 
 # Set logging mode. The option log_database must be set when setting this to
 # non-empty.
