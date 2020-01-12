@@ -2,14 +2,13 @@ XGOARCH := amd64
 XGOOS := linux
 XBIN := $(XGOOS)_$(XGOARCH)/zdns
 
-all: lint test install
+all: lint test-race install
 
 test:
-ifdef TRAVIS
-	go test -race ./...
-else
 	go test ./...
-endif
+
+test-race:
+	go test -race ./...
 
 vet:
 	go vet ./...
