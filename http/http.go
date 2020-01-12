@@ -113,6 +113,14 @@ func countFrom(r *http.Request) (int, error) {
 	return n, nil
 }
 
+func resolutionFrom(r *http.Request) (time.Duration, error) {
+	param := r.URL.Query().Get("resolution")
+	if param == "" {
+		return time.Minute, nil
+	}
+	return time.ParseDuration(param)
+}
+
 func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
 	count, err := countFrom(r)
 	if err != nil {
@@ -165,7 +173,11 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 }
 
 func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	lstats, err := s.logger.Stats()
+	resolution, err := resolutionFrom(r)
+	if err != nil {
+		return nil, newHTTPBadRequest(err)
+	}
+	lstats, err := s.logger.Stats(resolution)
 	if err != nil {
 		return nil, newHTTPError(err)
 	}

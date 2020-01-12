@@ -131,3 +131,34 @@ func TestLogPruning(t *testing.T) {
 		}
 	}
 }
+
+func TestStats(t *testing.T) {
+	var tests = []struct {
+		interval   time.Duration
+		resolution time.Duration
+		eventCount int
+	}{
+		{time.Minute, 0, 3},
+		{time.Minute, time.Second, 3},
+		{time.Minute, time.Minute, 3},
+		{time.Minute, time.Minute * 2, 2},
+		{time.Minute, time.Minute * 3, 1},
+		{time.Minute, time.Minute * 5, 1},
+	}
+	for i, tt := range tests {
+		logger := NewLogger(testClient(), LogAll, time.Hour)
+		now := time.Now()
+		for i := 0; i < 3; i++ {
+			logger.now = func() time.Time { return now.Add(time.Duration(i) * tt.interval) }
+			logger.Record(net.IPv4(192, 0, 2, 100), false, 1, "example.com.", "192.0.2.1")
+			logger.Close()
+		}
+		stats, err := logger.Stats(tt.resolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := len(stats.Events), tt.eventCount; got != want {
+			t.Errorf("#%d: len(Events) = %d, want %d", i, got, want)
+		}
+	}
+}

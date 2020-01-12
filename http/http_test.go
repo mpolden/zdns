@@ -105,6 +105,9 @@ func TestRequests(t *testing.T) {
 		{http.MethodGet, "/cache/v1/?n=foo", `{"status":400,"message":"invalid value for parameter n: foo"}`, 400},
 		{http.MethodGet, "/cache/v1/?n=1", cr2, 200},
 		{http.MethodGet, "/metric/v1/", mr1, 200},
+		{http.MethodGet, "/metric/v1/?resolution=1m", mr1, 200},
+		{http.MethodGet, "/metric/v1/?resolution=0", mr1, 200},
+		{http.MethodGet, "/metric/v1/?resolution=foo", `{"status":400,"message":"time: invalid duration foo"}`, 400},
 		{http.MethodDelete, "/cache/v1/", `{"message":"Cleared cache."}`, 200},
 	}
 

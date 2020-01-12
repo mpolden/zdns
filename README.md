@@ -125,7 +125,7 @@ $ curl -s -XDELETE 'http://127.0.0.1:8053/cache/v1/' | jq .
 Metrics:
 
 ``` shell
-$ curl 'http://127.0.0.1:8053/metric/v1/' | jq .
+$ curl 'http://127.0.0.1:8053/metric/v1/?resolution=1m' | jq .
 {
   "summary": {
     "log": {
@@ -150,6 +150,11 @@ $ curl 'http://127.0.0.1:8053/metric/v1/' | jq .
 Note that `log_mode = "hijacked"` or `log_mode = "all"` is required to make
 metrics available. Choosing `hijacked` will only produce metrics for hijacked
 requests.
+
+The query parameter `resolution` controls the resolution of the data points in
+`requests`. It accepts the same values as
+[time.ParseDuration](https://golang.org/pkg/time/#ParseDuration) and defaults to
+`1m`.
 
 ## Port redirection
 

@@ -117,18 +117,26 @@ func (l *Logger) Read(n int) ([]LogEntry, error) {
 	return logEntries, nil
 }
 
-// Stats returns logger statistics.
-func (l *Logger) Stats() (LogStats, error) {
+// Stats returns logger statistics. Events will be merged together according to resolution. A zero duration disables
+// merging.
+func (l *Logger) Stats(resolution time.Duration) (LogStats, error) {
 	stats, err := l.client.readLogStats()
 	if err != nil {
 		return LogStats{}, err
 	}
 	events := make([]LogEvent, 0, len(stats.Events))
+	var last *LogEvent
 	for _, le := range stats.Events {
-		events = append(events, LogEvent{
+		next := LogEvent{
 			Time:  time.Unix(le.Time, 0).UTC(),
 			Count: le.Count,
-		})
+		}
+		if last != nil && next.Time.Before(last.Time.Add(resolution)) {
+			last.Count += next.Count
+		} else {
+			events = append(events, next)
+			last = &events[len(events)-1]
+		}
 	}
 	return LogStats{
 		Since:    time.Unix(stats.Since, 0).UTC(),
