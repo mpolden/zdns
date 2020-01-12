@@ -115,6 +115,7 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 	} else {
 		dnsCache = cache.New(config.DNS.CacheSize, cacheDNS)
 	}
+	sigHandler.OnClose(dnsCache)
 
 	// DNS server
 	proxy, err := dns.NewProxy(dnsCache, dnsClient, sqlLogger)
