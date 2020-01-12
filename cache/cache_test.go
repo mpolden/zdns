@@ -12,6 +12,8 @@ import (
 	"github.com/mpolden/zdns/dns/dnsutil"
 )
 
+var testMsg *dns.Msg = newA("example.com.", 60, net.ParseIP("192.0.2.1"))
+
 type testExchanger struct {
 	mu      sync.RWMutex
 	answers chan *dns.Msg
@@ -86,38 +88,6 @@ func reverse(msgs []*dns.Msg) []*dns.Msg {
 	return reversed
 }
 
-func awaitExpiry(t *testing.T, i int, c *Cache, k uint32) {
-	now := time.Now()
-	for { // Loop until k is removed by maintainer
-		c.mu.RLock()
-		_, ok := c.values[k]
-		c.mu.RUnlock()
-		if !ok {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-		if time.Since(now) > 2*time.Second {
-			t.Fatalf("#%d: timed out waiting for expiry of key %d", i, k)
-		}
-	}
-}
-
-func awaitRefresh(t *testing.T, i int, c *Cache, k uint32, u time.Time) {
-	now := time.Now()
-	for { // Loop until CreatedAt of key k is after u
-		c.mu.RLock()
-		v, ok := c.values[k]
-		c.mu.RUnlock()
-		if ok && !v.CreatedAt.Before(u) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-		if time.Since(now) > 2*time.Second {
-			t.Fatalf("#%d: timed out waiting for refresh of key %d", i, k)
-		}
-	}
-}
-
 func TestNewKey(t *testing.T) {
 	var tests = []struct {
 		name          string
@@ -138,9 +108,9 @@ func TestNewKey(t *testing.T) {
 }
 
 func TestCache(t *testing.T) {
-	msg := newA("r1.", 60, net.ParseIP("192.0.2.1"), net.ParseIP("192.0.2.2"))
-	msgWithZeroTTL := newA("r2.", 0, net.ParseIP("192.0.2.2"))
-	msgFailure := newA("r3.", 60, net.ParseIP("192.0.2.2"))
+	msg := newA("1.example.com.", 60, net.ParseIP("192.0.2.1"), net.ParseIP("192.0.2.2"))
+	msgWithZeroTTL := newA("2.example.com.", 0, net.ParseIP("192.0.2.2"))
+	msgFailure := newA("3.example.com.", 60, net.ParseIP("192.0.2.2"))
 	msgFailure.Rcode = dns.RcodeServerFailure
 	msgNameError := &dns.Msg{}
 	msgNameError.Id = dns.Id()
@@ -148,24 +118,23 @@ func TestCache(t *testing.T) {
 	msgNameError.Rcode = dns.RcodeNameError
 
 	now := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
-	nowFn := func() time.Time { return now }
-	c := newCache(100, nil, &defaultBackend{}, nowFn)
+	c := New(100, nil)
 	var tests = []struct {
 		msg       *dns.Msg
 		queriedAt time.Time
 		ok        bool
 		value     *Value
 	}{
-		{msg, now, true, &Value{Key: 3640515006, CreatedAt: now, msg: msg}},                       // Not expired when query time == create time
-		{msg, now.Add(30 * time.Second), true, &Value{Key: 3640515006, CreatedAt: now, msg: msg}}, // Not expired when below TTL
-		{msg, now.Add(60 * time.Second), true, &Value{Key: 3640515006, CreatedAt: now, msg: msg}}, // Not expired until TTL exceeds
+		{msg, now, true, &Value{Key: 3517338631, CreatedAt: now, msg: msg}},                       // Not expired when query time == create time
+		{msg, now.Add(30 * time.Second), true, &Value{Key: 3517338631, CreatedAt: now, msg: msg}}, // Not expired when below TTL
+		{msg, now.Add(60 * time.Second), true, &Value{Key: 3517338631, CreatedAt: now, msg: msg}}, // Not expired until TTL exceeds
 		{msgNameError, now, true, &Value{Key: 3980405151, CreatedAt: now, msg: msgNameError}},     // NXDOMAIN is cached
 		{msg, now.Add(61 * time.Second), false, nil},                                              // Expired due to TTL exceeded
 		{msgWithZeroTTL, now, false, nil},                                                         // 0 TTL is not cached
 		{msgFailure, now, false, nil},                                                             // Non-cacheable rcode
 	}
 	for i, tt := range tests {
-		c.now = nowFn
+		c.now = func() time.Time { return now }
 		k := NewKey(tt.msg.Question[0].Name, tt.msg.Question[0].Qtype, tt.msg.Question[0].Qclass)
 		c.Set(k, tt.msg)
 		c.now = func() time.Time { return tt.queriedAt }
@@ -175,9 +144,7 @@ func TestCache(t *testing.T) {
 		if v, ok := c.getValue(k); ok != tt.ok || !reflect.DeepEqual(v, tt.value) {
 			t.Errorf("#%d: getValue(%d) = (%+v, %t), want (%+v, %t)", i, k, v, ok, tt.value, tt.ok)
 		}
-		if !tt.ok {
-			awaitExpiry(t, i, c, k)
-		}
+		c.Close()
 		c.mu.RLock()
 		if _, ok := c.values[k]; ok != tt.ok {
 			t.Errorf("#%d: values[%d] = %t, want %t", i, k, ok, tt.ok)
@@ -309,24 +276,19 @@ func TestCachePrefetch(t *testing.T) {
 		{"192.0.2.1", "192.0.2.42", time.Minute, 0, 61 * time.Second, "192.0.2.42", false, true},
 	}
 	for i, tt := range tests {
-		msg := newA("example.com.", uint32(tt.initialTTL.Seconds()), net.ParseIP(tt.initialAnswer))
-		copy := msg.Copy()
+		copy := testMsg.Copy()
 		copy.Answer[0].(*dns.A).A = net.ParseIP(tt.refreshAnswer)
 		copy.Answer[0].(*dns.A).Hdr.Ttl = uint32(tt.refreshTTL.Seconds())
 		exchanger.reset()
 		exchanger.setAnswer(copy)
 
 		// Add new value now
-		c.mu.Lock()
 		c.now = func() time.Time { return now }
-		c.mu.Unlock()
 		var key uint32 = 1
-		c.Set(key, msg)
+		c.Set(key, testMsg)
 
 		// Read value at some point in the future
-		c.mu.Lock()
 		c.now = func() time.Time { return now.Add(tt.readDelay) }
-		c.mu.Unlock()
 		v, ok := c.getValue(key)
 		c.Close() // Flush queued operations
 
@@ -351,15 +313,14 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 	now := time.Now()
 	c := newCache(10, client, &defaultBackend{}, func() time.Time { return now })
 
-	msg := newA("example.com.", 60, net.ParseIP("192.0.2.1"))
 	var key uint32 = 1
-	c.Set(key, msg)
+	c.Set(key, testMsg)
 
 	// Initial prefetched answer can no longer be cached
-	copy := msg.Copy()
+	copy := testMsg.Copy()
 	copy.Answer[0].(*dns.A).Hdr.Ttl = 0
 	exchanger.setAnswer(copy)
-	copy = msg.Copy()
+	copy = testMsg.Copy()
 	copy.Answer[0].(*dns.A).Hdr.Ttl = 30
 	exchanger.setAnswer(copy)
 
@@ -371,7 +332,7 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 	c.Get(key)
 
 	// Last query refreshes key
-	awaitRefresh(t, 0, c, key, c.now())
+	c.Close()
 	keyExists := false
 	for _, k := range c.keys {
 		if k == key {
@@ -387,7 +348,7 @@ func TestPackValue(t *testing.T) {
 	v := Value{
 		Key:       42,
 		CreatedAt: time.Now().Truncate(time.Second),
-		msg:       newA("example.com.", 60, net.ParseIP("192.0.2.1")),
+		msg:       testMsg,
 	}
 	packed, err := v.Pack()
 	if err != nil {
@@ -429,7 +390,7 @@ func TestCacheWithBackend(t *testing.T) {
 			v := Value{
 				Key:       uint32(j),
 				CreatedAt: time.Now(),
-				msg:       newA("example.com.", 60, net.ParseIP("192.0.2.1")),
+				msg:       testMsg,
 			}
 			backend.Set(v.Key, v)
 		}
@@ -444,8 +405,7 @@ func TestCacheWithBackend(t *testing.T) {
 		}
 		if tt.capacity == tt.backendSize {
 			// Adding a new entry to a cache at capacity removes the oldest from backend
-			msg := newA("example.com.", 60, net.ParseIP("192.0.2.1"))
-			c.Set(42, msg)
+			c.Set(42, testMsg)
 			if got, want := len(backend.Read()), tt.capacity; got != want {
 				t.Errorf("#%d: len(backend.Read()) = %d, want %d", i, got, want)
 			}
@@ -455,9 +415,8 @@ func TestCacheWithBackend(t *testing.T) {
 
 func TestCacheStats(t *testing.T) {
 	c := New(10, nil)
-	msg := newA("example.com.", 60, net.ParseIP("192.0.2.1"))
-	c.Set(1, msg)
-	c.Set(2, msg)
+	c.Set(1, testMsg)
+	c.Set(2, testMsg)
 	want := Stats{Capacity: 10, Size: 2}
 	got := c.Stats()
 	if !reflect.DeepEqual(got, want) {
