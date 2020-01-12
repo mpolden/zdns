@@ -38,6 +38,8 @@ type Cache struct {
 	keys     []uint32
 	mu       sync.RWMutex
 	now      func() time.Time
+	queue    chan func()
+	wg       sync.WaitGroup
 }
 
 // Value wraps a DNS message stored in the cache.
@@ -139,8 +141,10 @@ func newCache(capacity int, client *dnsutil.Client, backend Backend, now func() 
 		now:      now,
 		capacity: capacity,
 		values:   make(map[uint32]Value, capacity),
+		queue:    make(chan func(), 1024),
 	}
 	c.load(backend)
+	go c.readQueue()
 	return c
 }
 
@@ -176,6 +180,12 @@ func (c *Cache) load(backend Backend) {
 	c.backend = backend
 }
 
+// Close consumes any outstanding cache operations.
+func (c *Cache) Close() error {
+	c.wg.Wait()
+	return nil
+}
+
 // Get returns the DNS message associated with key.
 func (c *Cache) Get(key uint32) (*dns.Msg, bool) {
 	v, ok := c.getValue(key)
@@ -194,11 +204,10 @@ func (c *Cache) getValue(key uint32) (*Value, bool) {
 	}
 	if c.isExpired(&v) {
 		if !c.prefetch() {
-			go c.evictWithLock(key)
+			c.enqueue(func() { c.evictWithLock(key) })
 			return nil, false
 		}
-		// Refresh and return a stale value
-		go c.refresh(key, v.msg)
+		c.enqueue(func() { c.refresh(key, v.msg) })
 	}
 	return &v, true
 }
@@ -318,6 +327,18 @@ func (c *Cache) removeKey(key uint32) {
 func (c *Cache) isExpired(v *Value) bool {
 	expiresAt := v.CreatedAt.Add(dnsutil.MinTTL(v.msg))
 	return c.now().After(expiresAt)
+}
+
+func (c *Cache) enqueue(op func()) {
+	c.wg.Add(1)
+	c.queue <- op
+}
+
+func (c *Cache) readQueue() {
+	for op := range c.queue {
+		op()
+		c.wg.Done()
+	}
 }
 
 func canCache(msg *dns.Msg) bool {
