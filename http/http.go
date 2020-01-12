@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -72,6 +73,13 @@ func newHTTPError(err error) *httpError {
 	}
 }
 
+func newHTTPBadRequest(err error) *httpError {
+	return &httpError{
+		err:    err,
+		Status: http.StatusBadRequest,
+	}
+}
+
 // NewServer creates a new HTTP server, serving logs from the given logger and listening on addr.
 func NewServer(cache *cache.Cache, logger *sql.Logger, addr string) *Server {
 	server := &http.Server{Addr: addr}
@@ -93,18 +101,24 @@ func (s *Server) handler() http.Handler {
 	return r.handler()
 }
 
-func listCountFrom(r *http.Request) int {
-	defaultCount := 100
+func countFrom(r *http.Request) (int, error) {
 	param := r.URL.Query().Get("n")
-	n, err := strconv.Atoi(param)
-	if err != nil {
-		return defaultCount
+	if param == "" {
+		return 100, nil
 	}
-	return n
+	n, err := strconv.Atoi(param)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("invalid value for parameter n: %s", param)
+	}
+	return n, nil
 }
 
 func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	cacheValues := s.cache.List(listCountFrom(r))
+	count, err := countFrom(r)
+	if err != nil {
+		return nil, newHTTPBadRequest(err)
+	}
+	cacheValues := s.cache.List(count)
 	entries := make([]entry, 0, len(cacheValues))
 	for _, v := range cacheValues {
 		entries = append(entries, entry{
@@ -127,7 +141,11 @@ func (s *Server) cacheResetHandler(w http.ResponseWriter, r *http.Request) (inte
 }
 
 func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
-	logEntries, err := s.logger.Read(listCountFrom(r))
+	count, err := countFrom(r)
+	if err != nil {
+		return nil, newHTTPBadRequest(err)
+	}
+	logEntries, err := s.logger.Read(count)
 	if err != nil {
 		return nil, newHTTPError(err)
 	}
