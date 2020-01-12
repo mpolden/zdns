@@ -51,8 +51,9 @@ type Value struct {
 
 // Stats contains cache statistics.
 type Stats struct {
-	Size     int
-	Capacity int
+	Size         int
+	Capacity     int
+	PendingTasks int
 }
 
 // Rcode returns the response code of the cached value v.
@@ -245,8 +246,9 @@ func (c *Cache) Stats() Stats {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return Stats{
-		Capacity: c.capacity,
-		Size:     len(c.values),
+		Capacity:     c.capacity,
+		Size:         len(c.values),
+		PendingTasks: len(c.queue),
 	}
 }
 

@@ -18,9 +18,10 @@ import (
 // A Server defines paramaters for running an HTTP server. The HTTP server serves an API for inspecting cache contents
 // and request log.
 type Server struct {
-	cache  *cache.Cache
-	logger *sql.Logger
-	server *http.Server
+	cache    *cache.Cache
+	logger   *sql.Logger
+	sqlCache *sql.Cache
+	server   *http.Server
 }
 
 type entry struct {
@@ -50,14 +51,21 @@ type request struct {
 }
 
 type logStats struct {
-	Since    string `json:"since"`
-	Total    int64  `json:"total"`
-	Hijacked int64  `json:"hijacked"`
+	Since        string `json:"since"`
+	Total        int64  `json:"total"`
+	Hijacked     int64  `json:"hijacked"`
+	PendingTasks int    `json:"pending_tasks"`
 }
 
 type cacheStats struct {
-	Size     int `json:"size"`
-	Capacity int `json:"capacity"`
+	Size         int           `json:"size"`
+	Capacity     int           `json:"capacity"`
+	PendingTasks int           `json:"pending_tasks"`
+	BackendStats *backendStats `json:"backend,omitempty"`
+}
+
+type backendStats struct {
+	PendingTasks int `json:"pending_tasks"`
 }
 
 type httpError struct {
@@ -81,12 +89,13 @@ func newHTTPBadRequest(err error) *httpError {
 }
 
 // NewServer creates a new HTTP server, serving logs from the given logger and listening on addr.
-func NewServer(cache *cache.Cache, logger *sql.Logger, addr string) *Server {
+func NewServer(cache *cache.Cache, logger *sql.Logger, sqlCache *sql.Cache, addr string) *Server {
 	server := &http.Server{Addr: addr}
 	s := &Server{
-		cache:  cache,
-		logger: logger,
-		server: server,
+		cache:    cache,
+		logger:   logger,
+		sqlCache: sqlCache,
+		server:   server,
 	}
 	s.server.Handler = s.handler()
 	return s
@@ -189,6 +198,10 @@ func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interfac
 		})
 	}
 	cstats := s.cache.Stats()
+	var bstats *backendStats
+	if s.sqlCache != nil {
+		bstats = &backendStats{PendingTasks: s.sqlCache.Stats().PendingTasks}
+	}
 	return stats{
 		Summary: summary{
 			Log: logStats{
@@ -197,8 +210,10 @@ func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interfac
 				Hijacked: lstats.Hijacked,
 			},
 			Cache: cacheStats{
-				Capacity: cstats.Capacity,
-				Size:     cstats.Size,
+				Capacity:     cstats.Capacity,
+				Size:         cstats.Size,
+				PendingTasks: cstats.PendingTasks,
+				BackendStats: bstats,
 			},
 		},
 		Requests: requests,

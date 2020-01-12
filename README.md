@@ -131,11 +131,16 @@ $ curl 'http://127.0.0.1:8053/metric/v1/?resolution=1m' | jq .
     "log": {
       "since": "2020-01-05T00:58:49Z",
       "total": 3816,
-      "hijacked": 874
+      "hijacked": 874,
+      "pending_tasks": 0
     },
     "cache": {
       "size": 845,
-      "capacity": 4096
+      "capacity": 4096,
+      "pending_tasks": 0,
+      "backend": {
+        "pending_tasks": 0
+      }
     }
   },
   "requests": [

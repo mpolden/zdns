@@ -129,7 +129,7 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 
 	// HTTP server
 	if config.DNS.ListenHTTP != "" {
-		httpSrv := http.NewServer(dnsCache, sqlLogger, config.DNS.ListenHTTP)
+		httpSrv := http.NewServer(dnsCache, sqlLogger, sqlCache, config.DNS.ListenHTTP)
 		sigHandler.OnClose(httpSrv)
 		servers = append(servers, httpSrv)
 	}

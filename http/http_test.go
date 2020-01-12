@@ -35,8 +35,9 @@ func testServer() (*httptest.Server, *Server) {
 		panic(err)
 	}
 	logger := sql.NewLogger(sqlClient, sql.LogAll, 0)
+	sqlCache := sql.NewCache(sqlClient)
 	cache := cache.New(10, nil)
-	server := Server{logger: logger, cache: cache}
+	server := Server{logger: logger, cache: cache, sqlCache: sqlCache}
 	return httptest.NewServer(server.handler()), &server
 }
 
@@ -89,7 +90,7 @@ func TestRequests(t *testing.T) {
 	lr1 := `[{"time":"RFC3339","remote_addr":"127.0.0.254","hijacked":true,"type":"AAAA","question":"example.com.","answers":["2001:db8::1"]},` +
 		`{"time":"RFC3339","remote_addr":"127.0.0.42","hijacked":false,"type":"A","question":"example.com.","answers":["192.0.2.101","192.0.2.100"]}]`
 	lr2 := `[{"time":"RFC3339","remote_addr":"127.0.0.254","hijacked":true,"type":"AAAA","question":"example.com.","answers":["2001:db8::1"]}]`
-	mr1 := `{"summary":{"log":{"since":"RFC3339","total":2,"hijacked":1},"cache":{"size":2,"capacity":10}},"requests":[{"time":"RFC3339","count":2}]}`
+	mr1 := `{"summary":{"log":{"since":"RFC3339","total":2,"hijacked":1,"pending_tasks":0},"cache":{"size":2,"capacity":10,"pending_tasks":0,"backend":{"pending_tasks":0}}},"requests":[{"time":"RFC3339","count":2}]}`
 
 	var tests = []struct {
 		method   string

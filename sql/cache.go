@@ -24,7 +24,11 @@ type Cache struct {
 	wg     sync.WaitGroup
 	queue  chan query
 	client *Client
-	logger *log.Logger
+}
+
+// CacheStats containts cache statistics.
+type CacheStats struct {
+	PendingTasks int
 }
 
 // NewCache creates a new cache using client for persistence.
@@ -74,6 +78,9 @@ func (c *Cache) Read() []cache.Value {
 	return values
 }
 
+// Stats returns cache statistics.
+func (c *Cache) Stats() CacheStats { return CacheStats{PendingTasks: len(c.queue)} }
+
 func (c *Cache) enqueue(q query) {
 	c.wg.Add(1)
 	c.queue <- q
@@ -85,21 +92,21 @@ func (c *Cache) readQueue() {
 		case setOp:
 			packed, err := q.value.Pack()
 			if err != nil {
-				c.logger.Fatalf("failed to pack value: %s", err)
+				log.Fatalf("failed to pack value: %s", err)
 			}
 			if err := c.client.writeCacheValue(q.key, packed); err != nil {
-				c.logger.Printf("failed to write key=%d data=%q: %s", q.key, packed, err)
+				log.Printf("failed to write key=%d data=%q: %s", q.key, packed, err)
 			}
 		case removeOp:
 			if err := c.client.removeCacheValue(q.key); err != nil {
-				c.logger.Printf("failed to remove key=%d: %s", q.key, err)
+				log.Printf("failed to remove key=%d: %s", q.key, err)
 			}
 		case resetOp:
 			if err := c.client.truncateCache(); err != nil {
-				c.logger.Printf("failed to truncate cache: %s", err)
+				log.Printf("failed to truncate cache: %s", err)
 			}
 		default:
-			c.logger.Printf("unhandled operation %d", q.op)
+			log.Printf("unhandled operation %d", q.op)
 		}
 		c.wg.Done()
 	}

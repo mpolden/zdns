@@ -37,10 +37,11 @@ type LogEntry struct {
 
 // LogStats contains log statistics.
 type LogStats struct {
-	Since    time.Time
-	Total    int64
-	Hijacked int64
-	Events   []LogEvent
+	Since        time.Time
+	Total        int64
+	Hijacked     int64
+	PendingTasks int
+	Events       []LogEvent
 }
 
 // LogEvent contains the number of requests at a point in time.
@@ -139,10 +140,11 @@ func (l *Logger) Stats(resolution time.Duration) (LogStats, error) {
 		}
 	}
 	return LogStats{
-		Since:    time.Unix(stats.Since, 0).UTC(),
-		Total:    stats.Total,
-		Hijacked: stats.Hijacked,
-		Events:   events,
+		Since:        time.Unix(stats.Since, 0).UTC(),
+		Total:        stats.Total,
+		Hijacked:     stats.Hijacked,
+		PendingTasks: len(l.queue),
+		Events:       events,
 	}, nil
 }
 
