@@ -185,12 +185,22 @@ func TestInterleavedRW(t *testing.T) {
 
 func TestReadLogStats(t *testing.T) {
 	c := testClient()
-	writeTests(c, t)
+
 	got, err := c.readLogStats()
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := logStats{
+	want := logStats{}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("readLogStats() = (%+v, _), want (%+v, _)", got, want)
+	}
+
+	writeTests(c, t)
+	got, err = c.readLogStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = logStats{
 		Since:    1560636910,
 		Hijacked: 1,
 		Total:    8,

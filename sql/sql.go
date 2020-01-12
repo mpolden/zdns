@@ -245,7 +245,7 @@ func (c *Client) readLogStats() (logStats, error) {
 	var stats logStats
 	q1 := `SELECT COUNT(*) as total,
                       COUNT(CASE hijacked WHEN 1 THEN 1 ELSE NULL END) as hijacked,
-                      time AS since
+                      IFNULL(time, 0) AS since
                FROM log
                ORDER BY time ASC LIMIT 1`
 	if err := c.db.Get(&stats, q1); err != nil {
