@@ -272,9 +272,10 @@ func (c *Client) writeCacheValue(key uint32, data string) error {
 		return nil
 	}
 	defer tx.Rollback()
-	query := `INSERT INTO cache (key, data) VALUES ($1, $2)
-                   ON CONFLICT(key) DO UPDATE SET data=excluded.data`
-	if _, err := tx.Exec(query, key, data); err != nil {
+	if _, err := tx.Exec("DELETE FROM cache WHERE key = $1", key); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("INSERT INTO cache (key, data) VALUES ($1, $2)", key, data); err != nil {
 		return err
 	}
 	return tx.Commit()

@@ -8,21 +8,29 @@ import (
 )
 
 func TestCache(t *testing.T) {
-	data := "3980405151 1578680472 00000100000100000000000003777777076578616d706c6503636f6d0000010001"
-	v, err := cache.Unpack(data)
+	data1 := "1 1578680472 00000100000100000000000003777777076578616d706c6503636f6d0000010001"
+	v1, err := cache.Unpack(data1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := testClient()
+	data2 := "2 1578680472 00000100000100000000000003777777076578616d706c6503636f6d0000010001"
+	v2, err := cache.Unpack(data2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := New(":memory:")
+	if err != nil {
+		panic(err)
+	}
 	c := NewCache(client)
 
 	// Set and read
-	c.Set(1, v)
+	c.Set(v1.Key, v1)
 	values := c.Read()
 	if got, want := len(values), 1; got != want {
 		t.Fatalf("len(values) = %d, want %d", got, want)
 	}
-	if got, want := values[0], v; !reflect.DeepEqual(got, want) {
+	if got, want := values[0], v1; !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
 
@@ -34,11 +42,21 @@ func TestCache(t *testing.T) {
 	}
 
 	// Insert, remove and read
-	c.Set(1, v)
-	c.Set(2, v)
-	c.Evict(1)
+	c.Set(v1.Key, v1)
+	c.Set(v2.Key, v2)
+	c.Evict(v1.Key)
 	values = c.Read()
 	if got, want := len(values), 1; got != want {
 		t.Fatalf("len(values) = %d, want %d", got, want)
+	}
+
+	// Replacing existing value changes order
+	c.Reset()
+	c.Set(v1.Key, v1)
+	c.Set(v2.Key, v2)
+	c.Set(v1.Key, v1)
+	values = c.Read()
+	if got, want := values[len(values)-1].Key, v1.Key; got != want {
+		t.Fatalf("last Key = %d, want %d", got, want)
 	}
 }
