@@ -96,7 +96,7 @@
 
 # Set the maximum timeout of a DNS request.
 #
-# timeout = "5s"
+# timeout = "2s"
 
 # Answer queries from static hosts files. There are no default values for the
 # following examples.

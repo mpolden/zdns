@@ -71,7 +71,7 @@ func newConfig() Config {
 		"1.0.0.1:853",
 	}
 	c.DNS.LogTTLString = "168h"
-	c.Resolver.TimeoutString = "5s"
+	c.Resolver.TimeoutString = "2s"
 	c.Resolver.Protocol = "tcp-tls"
 	return c
 }
