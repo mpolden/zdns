@@ -20,7 +20,7 @@
 # may lead to slightly stale entries, but cached requests will never block
 # waiting for the upstream resolver.
 #
-# cache_prefetch = false
+# cache_prefetch = true
 
 # Cache persistence.
 #

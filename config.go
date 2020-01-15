@@ -64,6 +64,7 @@ func newConfig() Config {
 	c.DNS.ListenHTTP = "127.0.0.1:8053"
 	c.DNS.Protocol = "udp"
 	c.DNS.CacheSize = 4096
+	c.DNS.CachePrefetch = true
 	c.DNS.RefreshInterval = "48h"
 	c.DNS.Resolvers = []string{
 		"1.1.1.1:853",
