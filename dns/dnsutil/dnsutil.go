@@ -40,12 +40,14 @@ func NewClient(network string, timeout time.Duration, addresses ...string) *Clie
 }
 
 func multiExchange(exchanger Exchanger, msg *dns.Msg, address ...string) (*dns.Msg, error) {
-	done := make(chan bool, 1)
-	ch := make(chan *dns.Msg, len(address))
-	var wg sync.WaitGroup
-	wg.Add(len(address))
+	if len(address) == 0 {
+		return nil, fmt.Errorf("no addresses to query")
+	}
+	responses := make(chan *dns.Msg, len(address))
 	errs := make(chan error, len(address))
+	var wg sync.WaitGroup
 	for _, a := range address {
+		wg.Add(1)
 		go func(addr string) {
 			defer wg.Done()
 			r, _, err := exchanger.Exchange(msg, addr)
@@ -53,26 +55,18 @@ func multiExchange(exchanger Exchanger, msg *dns.Msg, address ...string) (*dns.M
 				errs <- fmt.Errorf("resolver %s failed: %w", addr, err)
 				return
 			}
-			ch <- r
+			responses <- r
 		}(a)
 	}
 	go func() {
 		wg.Wait()
-		done <- true
 		close(errs)
+		close(responses)
 	}()
-	for {
-		select {
-		case <-done:
-			err := <-errs
-			if err == nil {
-				err = fmt.Errorf("addresses is empty")
-			}
-			return nil, err
-		case rr := <-ch:
-			return rr, nil
-		}
+	for rr := range responses {
+		return rr, nil
 	}
+	return nil, <-errs
 }
 
 // Exchange performs a synchronous DNS query. All addresses in Client c are queried in parallel and the first successful
