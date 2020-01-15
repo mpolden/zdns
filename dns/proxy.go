@@ -10,6 +10,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
 	"github.com/mpolden/zdns/dns/dnsutil"
+	"github.com/mpolden/zdns/sql"
 )
 
 const (
@@ -33,25 +34,20 @@ type Handler func(*Request) *Reply
 
 // Proxy represents a DNS proxy.
 type Proxy struct {
-	Handler   Handler
-	cache     *cache.Cache
-	dnsLogger logger
-	server    *dns.Server
-	client    *dnsutil.Client
-	mu        sync.RWMutex
-}
-
-type logger interface {
-	Record(net.IP, bool, uint16, string, ...string)
-	Close() error
+	Handler Handler
+	cache   *cache.Cache
+	logger  *sql.Logger
+	server  *dns.Server
+	client  *dnsutil.Client
+	mu      sync.RWMutex
 }
 
 // NewProxy creates a new DNS proxy.
-func NewProxy(cache *cache.Cache, client *dnsutil.Client, dnsLogger logger) (*Proxy, error) {
+func NewProxy(cache *cache.Cache, client *dnsutil.Client, logger *sql.Logger) (*Proxy, error) {
 	return &Proxy{
-		dnsLogger: dnsLogger,
-		cache:     cache,
-		client:    client,
+		logger: logger,
+		cache:  cache,
+		client: client,
 	}, nil
 }
 
@@ -128,8 +124,8 @@ func (p *Proxy) writeMsg(w dns.ResponseWriter, msg *dns.Msg, hijacked bool) {
 	default:
 		panic(fmt.Sprintf("unexpected remote address type %T", v))
 	}
-	if p.dnsLogger != nil {
-		p.dnsLogger.Record(ip, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, dnsutil.Answers(msg)...)
+	if p.logger != nil {
+		p.logger.Record(ip, hijacked, msg.Question[0].Qtype, msg.Question[0].Name, dnsutil.Answers(msg)...)
 	}
 	w.WriteMsg(msg)
 }

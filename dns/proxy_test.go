@@ -67,15 +67,8 @@ func (e *testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Dura
 	return r.answer, time.Second, nil
 }
 
-type testLogger struct{}
-
-func (l *testLogger) Record(net.IP, bool, uint16, string, ...string) {}
-
-func (l *testLogger) Close() error { return nil }
-
 func testProxy(t *testing.T) *Proxy {
-	dnsLogger := &testLogger{}
-	proxy, err := NewProxy(cache.New(0, nil), nil, dnsLogger)
+	proxy, err := NewProxy(cache.New(0, nil), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

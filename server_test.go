@@ -33,12 +33,6 @@ const hostsFile2 = `
 192.0.2.6   badhost6
 `
 
-type testLogger struct{}
-
-func (l *testLogger) Record(net.IP, bool, uint16, string, ...string) {}
-
-func (l *testLogger) Close() error { return nil }
-
 func httpHandler(t *testing.T, response string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := w.Write([]byte(response)); err != nil {
@@ -106,8 +100,7 @@ func testServer(t *testing.T, refreshInterval time.Duration) (*Server, func()) {
 	if err := config.load(); err != nil {
 		t.Fatal(err)
 	}
-	queryLogger := &testLogger{}
-	proxy, err := dns.NewProxy(cache.New(0, nil), nil, queryLogger)
+	proxy, err := dns.NewProxy(cache.New(0, nil), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
