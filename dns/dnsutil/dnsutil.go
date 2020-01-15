@@ -39,18 +39,16 @@ func NewClient(network string, timeout time.Duration, addresses ...string) *Clie
 	return &Client{Exchanger: client, Addresses: addresses}
 }
 
-// Exchange performs a synchronous DNS query. All addresses in Client c are queried in parallel and the first successful
-// response is returned.
-func (c *Client) Exchange(msg *dns.Msg) (*dns.Msg, error) {
+func multiExchange(exchanger Exchanger, msg *dns.Msg, address ...string) (*dns.Msg, error) {
 	done := make(chan bool, 1)
-	ch := make(chan *dns.Msg, len(c.Addresses))
+	ch := make(chan *dns.Msg, len(address))
 	var wg sync.WaitGroup
-	wg.Add(len(c.Addresses))
-	errs := make(chan error, len(c.Addresses))
-	for _, a := range c.Addresses {
+	wg.Add(len(address))
+	errs := make(chan error, len(address))
+	for _, a := range address {
 		go func(addr string) {
 			defer wg.Done()
-			r, _, err := c.Exchanger.Exchange(msg, addr)
+			r, _, err := exchanger.Exchange(msg, addr)
 			if err != nil {
 				errs <- fmt.Errorf("resolver %s failed: %w", addr, err)
 				return
@@ -75,6 +73,12 @@ func (c *Client) Exchange(msg *dns.Msg) (*dns.Msg, error) {
 			return rr, nil
 		}
 	}
+}
+
+// Exchange performs a synchronous DNS query. All addresses in Client c are queried in parallel and the first successful
+// response is returned.
+func (c *Client) Exchange(msg *dns.Msg) (*dns.Msg, error) {
+	return multiExchange(c.Exchanger, msg, c.Addresses...)
 }
 
 // Answers returns all values in the answer section of DNS message msg.
