@@ -430,16 +430,24 @@ func BenchmarkNewKey(b *testing.B) {
 	}
 }
 
-func BenchmarkCache(b *testing.B) {
-	c := New(1000, nil)
+func BenchmarkSet(b *testing.B) {
+	c := New(4096, nil)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		c.Set(uint32(n), &dns.Msg{})
-		c.Get(uint32(n))
 	}
 }
 
-func BenchmarkCacheEviction(b *testing.B) {
+func BenchmarkGet(b *testing.B) {
+	c := New(4096, nil)
+	c.Set(uint32(1), &dns.Msg{})
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		c.Get(uint32(1))
+	}
+}
+
+func BenchmarkEviction(b *testing.B) {
 	c := New(1, nil)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
