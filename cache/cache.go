@@ -142,6 +142,7 @@ func newCache(capacity int, client *dnsutil.Client, backend Backend, now func() 
 		now:      now,
 		capacity: capacity,
 		values:   make(map[uint32]Value, capacity),
+		keys:     make([]uint32, 0, capacity),
 		queue:    make(chan func(), 1024),
 	}
 	c.load(backend)
@@ -319,7 +320,7 @@ func (c *Cache) removeKey(key uint32) {
 	if len(c.keys) == 0 {
 		return
 	}
-	keys := make([]uint32, 0, len(c.keys)-1)
+	keys := make([]uint32, 0, cap(c.keys))
 	for _, k := range c.keys {
 		if k == key {
 			continue
