@@ -316,7 +316,10 @@ func (c *Cache) appendKey(key uint32) {
 }
 
 func (c *Cache) removeKey(key uint32) {
-	var keys []uint32
+	if len(c.keys) == 0 {
+		return
+	}
+	keys := make([]uint32, 0, len(c.keys)-1)
 	for _, k := range c.keys {
 		if k == key {
 			continue
