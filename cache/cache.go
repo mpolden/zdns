@@ -277,8 +277,8 @@ func (c *Cache) setValue(value Value) bool {
 func (c *Cache) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.values = make(map[uint32]Value)
-	c.keys = nil
+	c.values = make(map[uint32]Value, cap(c.keys))
+	c.keys = make([]uint32, 0, cap(c.keys))
 	c.backend.Reset()
 }
 
