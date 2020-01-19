@@ -218,3 +218,16 @@ func TestReadLogStats(t *testing.T) {
 		t.Errorf("readLogStats() = (%+v, _), want (%+v, _)", got, want)
 	}
 }
+
+func BenchmarkReadLog(b *testing.B) {
+	c := testClient()
+	for i := 0; i < 1000; i++ {
+		if err := c.writeLog(time.Now(), net.ParseIP("127.0.0.1"), false, 1, "example.com.", "192.0.2.1"); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		c.readLog(1000)
+	}
+}

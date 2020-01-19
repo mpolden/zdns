@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS log_rr_answer (
   FOREIGN KEY       (rr_answer_id)    REFERENCES rr_answer(id)
 );
 
+CREATE INDEX IF NOT EXISTS log_rr_answer_log_id ON log_rr_answer(log_id);
+
 CREATE TABLE IF NOT EXISTS cache (
   id                INTEGER           PRIMARY KEY,
   key               INTEGER           NOT NULL,
