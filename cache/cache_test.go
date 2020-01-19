@@ -255,7 +255,7 @@ func TestCachePrefetch(t *testing.T) {
 	exchanger := newTestExchanger()
 	client := &dnsutil.Client{Exchanger: exchanger, Addresses: []string{"resolver"}}
 	now := time.Now()
-	c := newCache(10, client, &defaultBackend{}, func() time.Time { return now })
+	c := newCache(10, client, nil, func() time.Time { return now })
 	var tests = []struct {
 		initialAnswer string
 		refreshAnswer string
@@ -311,7 +311,7 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 	exchanger := newTestExchanger()
 	client := &dnsutil.Client{Exchanger: exchanger, Addresses: []string{"resolver"}}
 	now := time.Now()
-	c := newCache(10, client, &defaultBackend{}, func() time.Time { return now })
+	c := newCache(10, client, nil, func() time.Time { return now })
 
 	var key uint32 = 1
 	c.Set(key, testMsg)

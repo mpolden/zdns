@@ -22,13 +22,6 @@ type Backend interface {
 	Reset()
 }
 
-type defaultBackend struct{}
-
-func (b *defaultBackend) Set(uint32, Value) {}
-func (b *defaultBackend) Evict(uint32)      {}
-func (b *defaultBackend) Read() []Value     { return nil }
-func (b *defaultBackend) Reset()            {}
-
 // Cache is a cache of DNS messages.
 type Cache struct {
 	client   *dnsutil.Client
@@ -124,7 +117,7 @@ func Unpack(value string) (Value, error) {
 // - All cache write operations will be forward to the backend.
 // - The backed will be used to pre-populate the cache.
 func New(capacity int, client *dnsutil.Client) *Cache {
-	return NewWithBackend(capacity, client, &defaultBackend{})
+	return NewWithBackend(capacity, client, nil)
 }
 
 // NewWithBackend creates a new cache that forwards entries to backend.
@@ -138,14 +131,15 @@ func newCache(capacity int, client *dnsutil.Client, backend Backend, now func() 
 	}
 	c := &Cache{
 		client:   client,
-		backend:  &defaultBackend{},
 		now:      now,
 		capacity: capacity,
 		values:   make(map[uint32]Value, capacity),
 		keys:     make([]uint32, 0, capacity),
 		queue:    make(chan func(), 1024),
 	}
-	c.load(backend)
+	if backend != nil {
+		c.load(backend)
+	}
 	go c.readQueue()
 	return c
 }
@@ -265,11 +259,15 @@ func (c *Cache) setValue(value Value) bool {
 		evict := c.keys[0]
 		delete(c.values, evict)
 		c.keys = c.keys[1:]
-		c.backend.Evict(evict)
+		if c.hasBackend() {
+			c.backend.Evict(evict)
+		}
 	}
 	c.values[value.Key] = value
 	c.appendKey(value.Key)
-	c.backend.Set(value.Key, value)
+	if c.hasBackend() {
+		c.backend.Set(value.Key, value)
+	}
 	return true
 }
 
@@ -279,10 +277,14 @@ func (c *Cache) Reset() {
 	defer c.mu.Unlock()
 	c.values = make(map[uint32]Value, cap(c.keys))
 	c.keys = make([]uint32, 0, cap(c.keys))
-	c.backend.Reset()
+	if c.hasBackend() {
+		c.backend.Reset()
+	}
 }
 
 func (c *Cache) prefetch() bool { return c.client != nil }
+
+func (c *Cache) hasBackend() bool { return c.backend != nil }
 
 func (c *Cache) refresh(key uint32, old *dns.Msg) {
 	q := old.Question[0]
@@ -308,7 +310,9 @@ func (c *Cache) evictWithLock(key uint32) {
 func (c *Cache) evict(key uint32) {
 	delete(c.values, key)
 	c.removeKey(key)
-	c.backend.Evict(key)
+	if c.hasBackend() {
+		c.backend.Evict(key)
+	}
 }
 
 func (c *Cache) appendKey(key uint32) {
