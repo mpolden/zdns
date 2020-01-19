@@ -79,19 +79,8 @@ func (c *Client) Exchange(msg *dns.Msg) (*dns.Msg, error) {
 func Answers(msg *dns.Msg) []string {
 	var answers []string
 	for _, answer := range msg.Answer {
-		switch v := answer.(type) {
-		case *dns.A:
-			answers = append(answers, v.A.String())
-		case *dns.AAAA:
-			answers = append(answers, v.AAAA.String())
-		case *dns.MX:
-			answers = append(answers, v.Mx)
-		case *dns.PTR:
-			answers = append(answers, v.Ptr)
-		case *dns.NS:
-			answers = append(answers, v.Ns)
-		case *dns.CNAME:
-			answers = append(answers, v.Target)
+		for i := 1; i <= dns.NumField(answer); i++ {
+			answers = append(answers, dns.Field(answer, i))
 		}
 	}
 	return answers

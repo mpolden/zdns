@@ -3,6 +3,7 @@ package dnsutil
 import (
 	"errors"
 	"net"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -104,6 +105,26 @@ func TestMinTTL(t *testing.T) {
 		msg.Extra = tt.extra
 		if got := MinTTL(&msg); got != tt.ttl {
 			t.Errorf("#%d: MinTTL(\n%s) = %s, want %s", i, msg.String(), got, tt.ttl)
+		}
+	}
+}
+
+func TestAnswers(t *testing.T) {
+	var tests = []struct {
+		rr  []dns.RR
+		out []string
+	}{
+		{[]dns.RR{&dns.A{A: net.ParseIP("192.0.2.1")}}, []string{"192.0.2.1"}},
+		{[]dns.RR{
+			&dns.A{A: net.ParseIP("192.0.2.1")},
+			&dns.A{A: net.ParseIP("192.0.2.2")},
+		}, []string{"192.0.2.1", "192.0.2.2"}},
+		{[]dns.RR{&dns.AAAA{AAAA: net.ParseIP("2001:db8::1")}}, []string{"2001:db8::1"}},
+	}
+	for i, tt := range tests {
+		msg := dns.Msg{Answer: tt.rr}
+		if got, want := Answers(&msg), tt.out; !reflect.DeepEqual(got, want) {
+			t.Errorf("#%d: Answers(%+v) = %+v, want %+v", i, tt.rr, got, want)
 		}
 	}
 }
