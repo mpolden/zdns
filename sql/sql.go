@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS log (
   FOREIGN KEY       (rr_type_id)      REFERENCES rr_type(id)
 );
 
+CREATE INDEX IF NOT EXISTS log_time ON log(time);
+
 CREATE TABLE IF NOT EXISTS log_rr_answer (
   id                INTEGER           PRIMARY KEY,
   log_id            INTEGER           NOT NULL,
@@ -208,7 +210,9 @@ func (c *Client) deleteLogBefore(t time.Time) (err error) {
 	}
 	defer tx.Rollback()
 	var ids []int64
-	if err := tx.Select(&ids, "SELECT id FROM log WHERE time < $1", t.Unix()); err != nil {
+	// SQLite limits the number of variables to 999 (SQLITE_LIMIT_VARIABLE_NUMBER):
+	// https://www.sqlite.org/limits.html
+	if err := tx.Select(&ids, "SELECT id FROM log WHERE time < $1 ORDER BY time ASC LIMIT 999", t.Unix()); err != nil {
 		return err
 	}
 	if len(ids) == 0 {
