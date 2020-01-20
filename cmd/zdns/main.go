@@ -84,20 +84,19 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 
 	// SQL backends
 	var (
+		sqlClient *sql.Client
 		sqlLogger *sql.Logger
 		sqlCache  *sql.Cache
 	)
 	if config.DNS.Database != "" {
-		sqlClient, err := sql.New(config.DNS.Database)
+		sqlClient, err = sql.New(config.DNS.Database)
 		fatal(err)
 
 		// Logger
 		sqlLogger = sql.NewLogger(sqlClient, config.DNS.LogMode, config.DNS.LogTTL)
-		sigHandler.OnClose(sqlLogger)
 
 		// Cache
 		sqlCache = sql.NewCache(sqlClient)
-		sigHandler.OnClose(sqlCache)
 	}
 
 	// DNS client
@@ -115,25 +114,43 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 	} else {
 		dnsCache = cache.New(config.DNS.CacheSize, cacheDNS)
 	}
-	sigHandler.OnClose(dnsCache)
 
 	// DNS server
 	proxy, err := dns.NewProxy(dnsCache, dnsClient, sqlLogger)
 	fatal(err)
-	sigHandler.OnClose(proxy)
 
 	dnsSrv, err := zdns.NewServer(proxy, config)
 	fatal(err)
 	sigHandler.OnReload(dnsSrv)
-	sigHandler.OnClose(dnsSrv)
 	servers := []server{dnsSrv}
 
 	// HTTP server
+	var httpSrv *http.Server
 	if config.DNS.ListenHTTP != "" {
-		httpSrv := http.NewServer(dnsCache, sqlLogger, sqlCache, config.DNS.ListenHTTP)
-		sigHandler.OnClose(httpSrv)
+		httpSrv = http.NewServer(dnsCache, sqlLogger, sqlCache, config.DNS.ListenHTTP)
 		servers = append(servers, httpSrv)
 	}
+
+	// Close proxy first
+	sigHandler.OnClose(proxy)
+
+	// ... then HTTP server
+	if httpSrv != nil {
+		sigHandler.OnClose(httpSrv)
+	}
+
+	// ... then cache
+	sigHandler.OnClose(dnsCache)
+
+	// ... then database components
+	if config.DNS.Database != "" {
+		sigHandler.OnClose(sqlLogger)
+		sigHandler.OnClose(sqlCache)
+		sigHandler.OnClose(sqlClient)
+	}
+
+	// ... and finally the server itself
+	sigHandler.OnClose(dnsSrv)
 	return &cli{servers: servers}, nil
 }
 

@@ -47,10 +47,9 @@ func (s *Handler) readSignal() {
 			log.Printf("received signal %s: shutting down", sig)
 			for _, c := range s.closers {
 				if err := c.Close(); err != nil {
-					log.Printf("close failed: %s", err)
+					log.Printf("close of %T failed: %s", c, err)
 				}
 			}
-
 		default:
 			log.Printf("received signal %s: ignoring", sig)
 		}

@@ -118,6 +118,9 @@ func New(filename string) (*Client, error) {
 	return &Client{db: db}, nil
 }
 
+// Close waits for all queries to complete and then closes the database.
+func (c *Client) Close() error { return c.db.Close() }
+
 func (c *Client) readLog(n int) ([]logEntry, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
