@@ -109,6 +109,9 @@ func New(filename string) (*Client, error) {
 	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
 		return nil, err
 	}
+	if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
+		return nil, err
+	}
 	if _, err := db.Exec(schema); err != nil {
 		return nil, err
 	}
