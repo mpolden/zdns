@@ -29,6 +29,7 @@ type server interface{ ListenAndServe() error }
 
 type cli struct {
 	servers []server
+	sh      *signal.Handler
 	wg      sync.WaitGroup
 }
 
@@ -151,7 +152,7 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 
 	// ... and finally the server itself
 	sigHandler.OnClose(dnsSrv)
-	return &cli{servers: servers}, nil
+	return &cli{servers: servers, sh: sigHandler}, nil
 }
 
 func (c *cli) run() {
@@ -159,6 +160,7 @@ func (c *cli) run() {
 		c.runServer(s)
 	}
 	c.wg.Wait()
+	c.sh.Close()
 }
 
 func main() {

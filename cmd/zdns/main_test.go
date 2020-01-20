@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"syscall"
 	"testing"
 )
 
@@ -37,8 +38,11 @@ hijack_mode = "zero"
 	}
 	defer os.Remove(f)
 
-	_, err = newCli(ioutil.Discard, []string{"-f", f}, f, make(chan os.Signal, 1))
+	sig := make(chan os.Signal, 1)
+	cli, err := newCli(ioutil.Discard, []string{"-f", f}, f, sig)
 	if err != nil {
 		t.Fatal(err)
 	}
+	sig <- syscall.SIGTERM
+	cli.sh.Close()
 }
