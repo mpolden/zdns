@@ -231,3 +231,20 @@ func BenchmarkReadLog(b *testing.B) {
 		c.readLog(1000)
 	}
 }
+
+func BenchmarkDeleteLogBefore(b *testing.B) {
+	c := testClient()
+	for n := 0; n < b.N; n++ {
+		b.StopTimer()
+		// Generate test data with many unique values for each column
+		for i := 0; i < 16; i++ {
+			for j := 0; j < 256; j++ {
+				if err := c.writeLog(time.Now(), net.ParseIP(fmt.Sprintf("127.0.%d.%d", i, j)), false, 1, fmt.Sprintf("%d-%d.example.com.", i, j), fmt.Sprintf("127.1.%d.%d", i, j)); err != nil {
+					b.Fatal(err)
+				}
+			}
+		}
+		b.StartTimer()
+		c.deleteLogBefore(time.Now())
+	}
+}

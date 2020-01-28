@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS log (
 );
 
 CREATE INDEX IF NOT EXISTS log_time ON log(time);
+CREATE INDEX IF NOT EXISTS log_remote_addr_id ON log(remote_addr_id);
+CREATE INDEX IF NOT EXISTS log_rr_question_id ON log(rr_question_id);
+CREATE INDEX IF NOT EXISTS log_rr_type_id ON log(rr_type_id);
 
 CREATE TABLE IF NOT EXISTS log_rr_answer (
   id                INTEGER           PRIMARY KEY,
@@ -57,6 +60,7 @@ CREATE TABLE IF NOT EXISTS log_rr_answer (
 );
 
 CREATE INDEX IF NOT EXISTS log_rr_answer_log_id ON log_rr_answer(log_id);
+CREATE INDEX IF NOT EXISTS log_rr_answer_rr_answer_id ON log_rr_answer(rr_answer_id);
 
 CREATE TABLE IF NOT EXISTS cache (
   id                INTEGER           PRIMARY KEY,
