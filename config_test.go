@@ -185,7 +185,7 @@ cache_persist = true
 		{conf5, "invalid resolver protocol: foo"},
 		{conf6, "invalid resolver timeout: foo"},
 		{conf7, "resolver timeout must be >= 0"},
-		{conf8, ":foo: invalid url: parse :foo: missing protocol scheme"},
+		{conf8, ":foo: invalid url: parse \":foo\": missing protocol scheme"},
 		{conf9, "foo://bar: unsupported scheme: foo"},
 		{conf10, "file:///tmp/foo: timeout cannot be set for file url"},
 		{conf11, "[0.0.0.0 host1]: timeout cannot be set for inline hosts"},
