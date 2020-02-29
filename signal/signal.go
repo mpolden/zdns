@@ -61,8 +61,6 @@ func (h *Handler) readSignal() {
 					log.Printf("close of %T failed: %s", c, err)
 				}
 			}
-		default:
-			log.Printf("received signal %s: ignoring", sig)
 		}
 	}
 }
