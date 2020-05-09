@@ -14,9 +14,10 @@ configure.
 
 * **Control**: Filter unwanted content at the DNS-level. Similar to
   [Pi-hole](https://github.com/pi-hole/pi-hole).
-* **Fast**: Efficient filtering and caching of DNS requests. With pre-fetching
-  enabled, cached requests will never block waiting for the upstream resolver.
-  Asynchronous persistent caching is also supported.
+* **Fast**: Parallel resolving over multiple resolvers, efficient filtering and
+  caching of DNS requests. With pre-fetching enabled, cached requests will never
+  block waiting for the upstream resolver. Asynchronous persistent caching is
+  also supported.
 * **Reliable**: Built with Go and [miekg/dns](https://github.com/miekg/dns) - a
   mature DNS library.
 * **Secure**: Protect your DNS requests from snooping and tampering using [DNS
@@ -180,7 +181,7 @@ The following examples assumes that _zdns_ is running on port 53000. See
 $ iptables -t nat -A PREROUTING -d -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
 
 # Local requests
-$ -A OUTPUT -d 127.0.0.1 -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
+$ iptables -A OUTPUT -d 127.0.0.1 -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
 ```
 
 ### macOS (pf)
@@ -197,8 +198,6 @@ _This is my personal opinion and not a objective assessment of Pi-hole._
 
 * Buggy installation script. In my personal experience, the 4.3 installation
   script failed silently in both Debian stretch and buster LXC containers.
-  
+
 * Installation method pipes `curl` to `bash`. Not properly packaged for any
   distributions.
-
-* PHP dependency.
