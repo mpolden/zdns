@@ -15,7 +15,7 @@ protocol = "udp"
 cache_size = 2048
 resolvers = [
   "192.0.2.1:53",
-  "192.0.2.2:53",
+  "192.0.2.2:53=example.com",
 ]
 hijack_mode = "zero" # or: empty, hosts
 hosts_refresh_interval = "48h"
@@ -75,7 +75,7 @@ hijack = false
 		{"DNS.Listen", conf.DNS.Listen, "0.0.0.0:53"},
 		{"DNS.Protocol", conf.DNS.Protocol, "udp"},
 		{"DNS.Resolvers[0]", conf.DNS.Resolvers[0], "192.0.2.1:53"},
-		{"DNS.Resolvers[1]", conf.DNS.Resolvers[1], "192.0.2.2:53"},
+		{"DNS.Resolvers[1]", conf.DNS.Resolvers[1], "192.0.2.2:53=example.com"},
 		{"DNS.HijackMode", conf.DNS.HijackMode, "zero"},
 		{"DNS.Database", conf.DNS.Database, "/tmp/log.db"},
 		{"DNS.LogMode", conf.DNS.LogModeString, "all"},

@@ -1,7 +1,9 @@
 package dnsutil
 
 import (
+	"crypto/tls"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -79,7 +81,13 @@ func NewClient(addr string, config Config) Client {
 	if config.Network == "https" {
 		r = http.NewClient(config.Timeout)
 	} else {
-		r = &dns.Client{Net: config.Network, Timeout: config.Timeout}
+		var tlsConfig *tls.Config
+		parts := strings.SplitN(addr, "=", 2)
+		if len(parts) == 2 {
+			addr = parts[0]
+			tlsConfig = &tls.Config{ServerName: parts[1]}
+		}
+		r = &dns.Client{Net: config.Network, Timeout: config.Timeout, TLSConfig: tlsConfig}
 	}
 	return &client{resolver: r, address: addr}
 }
