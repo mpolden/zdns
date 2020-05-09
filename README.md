@@ -2,13 +2,24 @@
 
 [![Build Status](https://travis-ci.org/mpolden/zdns.svg?branch=master)](https://travis-ci.org/mpolden/zdns)
 
-_zdns_ is a privacy-focused [DNS
+`zdns` is a privacy-focused [DNS
 resolver](https://en.wikipedia.org/wiki/Domain_Name_System#DNS_resolvers) and
 [DNS sinkhole](https://en.wikipedia.org/wiki/DNS_sinkhole).
 
 Its primary focus is to allow easy filtering of unwanted content at the
 DNS-level, transport upstream requests securely, be portable and easy to
 configure.
+
+## Contents
+
+* [Features](#features)
+* [Usage](#usage)
+  * [Installation](#installation)
+  * [Configuration](#configuration)
+  * [Logging](#logging)
+  * [Port redirection](#port-redirection)
+* [REST API](#rest-api)
+* [Why not Pi-hole?](#why-not-pi-hole)
 
 ## Features
 
@@ -23,48 +34,68 @@ configure.
 * **Secure**: Protect your DNS requests from snooping and tampering using [DNS
   over TLS](https://en.wikipedia.org/wiki/DNS_over_TLS) or [DNS over
   HTTPS](https://en.wikipedia.org/wiki/DNS_over_HTTPS) for upstream resolvers.
-* **Self-contained**: Zero run-time dependencies makes _zdns_ easy to deploy and
+* **Self-contained**: Zero run-time dependencies makes `zdns` easy to deploy and
   maintain.
-* **Observable**: _zdns_ features DNS logging and metrics which makes it easy to
+* **Observable**: `zdns` features DNS logging and metrics which makes it easy to
   observe what's going on your network.
 * **Portable**: Run it on your VPS, container, laptop, Raspberry Pi or home
   router. Runs on all platforms supported by Go.
 
-## Installation
+## Usage
 
-_zdns_ is a standard Go package which can be installed with `go get`.
+### Installation
+
+`zdns` is a standard Go package. Use `go get` to install it.
 
 ``` shell
 $ go get github.com/mpolden/zdns/...
 ```
 
-## Configuration
+### Configuration
 
-_zdns_ uses the [TOML](https://github.com/toml-lang/toml) configuration format
+`zdns` uses the [TOML](https://github.com/toml-lang/toml) configuration format
 and expects to find its configuration file in `~/.zdnsrc` by default.
 
 See [zdnsrc](zdnsrc) for an example configuration file.
 [zdns.service](zdns.service) contains an example systemd service file.
 
-## Usage
+An optional command line option, `-f`, allows specifying a custom configuration
+file path.
 
-_zdns_ is a single self-contained binary. There is one optional command line
-option, `-f`, which allows specifying a custom configuration file path.
+### Logging
 
-``` shell
-$ zdns -h
-Usage of zdns:
-  -f path
-    	config file path (default "/Users/martin/.zdnsrc")
-  -h	print usage
-```
-
-## Logging
-
-_zdns_ supports logging of DNS requests. Logs are written to a SQLite database.
+`zdns` supports logging of DNS requests. Logs are written to a SQLite database.
 
 Logs can be inspected through the built-in REST API or by querying the SQLite
 database directly. See `zdnsrc` for more details.
+
+### Port redirection
+
+Most operating systems expect to find their DNS resolver on UDP port 53.
+However, as this is a well-known port, any program listening on this port must
+have special privileges.
+
+To work around this problem we can configure the firewall to redirect
+connections to port 53 to a non-reserved port.
+
+The following examples assumes that `zdns` is running on port 53000. See
+`zdnsrc` for port configuration.
+
+#### Linux (iptables)
+
+``` shell
+# External requests
+$ iptables -t nat -A PREROUTING -d -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
+
+# Local requests
+$ iptables -A OUTPUT -d 127.0.0.1 -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
+```
+
+#### macOS (pf)
+
+1. Edit `/etc/pf.conf`
+2. Add `rdr pass inet proto udp from any to 127.0.0.1 port domain -> 127.0.0.1 port 53000` below the last `rdr-anchor` line.
+3. Enable PF and load rules: `pfctl -ef /etc/pf.conf`
 
 ## REST API
 
@@ -161,34 +192,6 @@ The query parameter `resolution` controls the resolution of the data points in
 `requests`. It accepts the same values as
 [time.ParseDuration](https://golang.org/pkg/time/#ParseDuration) and defaults to
 `1m`.
-
-## Port redirection
-
-Most operating systems expect to find their DNS resolver on UDP port 53.
-However, as this is a well-known port, any program listening on this port must
-have special privileges.
-
-To work around this problem we can configure the firewall to redirect
-connections to port 53 to a non-reserved port.
-
-The following examples assumes that _zdns_ is running on port 53000. See
-`zdnsrc` for port configuration.
-
-### Linux (iptables)
-
-``` shell
-# External requests
-$ iptables -t nat -A PREROUTING -d -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
-
-# Local requests
-$ iptables -A OUTPUT -d 127.0.0.1 -p udp -m udp --dport 53 -j REDIRECT --to-ports 53000
-```
-
-### macOS (pf)
-
-1. Edit `/etc/pf.conf`
-2. Add `rdr pass inet proto udp from any to 127.0.0.1 port domain -> 127.0.0.1 port 53000` below the last `rdr-anchor` line.
-3. Enable PF and load rules: `pfctl -ef /etc/pf.conf`
 
 ## Why not Pi-hole?
 
