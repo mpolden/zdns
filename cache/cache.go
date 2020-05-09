@@ -24,7 +24,7 @@ type Backend interface {
 
 // Cache is a cache of DNS messages.
 type Cache struct {
-	client   *dnsutil.Client
+	client   dnsutil.Client
 	backend  Backend
 	capacity int
 	values   map[uint32]Value
@@ -116,16 +116,16 @@ func Unpack(value string) (Value, error) {
 //
 // - All cache write operations will be forward to the backend.
 // - The backed will be used to pre-populate the cache.
-func New(capacity int, client *dnsutil.Client) *Cache {
+func New(capacity int, client dnsutil.Client) *Cache {
 	return NewWithBackend(capacity, client, nil)
 }
 
 // NewWithBackend creates a new cache that forwards entries to backend.
-func NewWithBackend(capacity int, client *dnsutil.Client, backend Backend) *Cache {
+func NewWithBackend(capacity int, client dnsutil.Client, backend Backend) *Cache {
 	return newCache(capacity, client, backend, time.Now)
 }
 
-func newCache(capacity int, client *dnsutil.Client, backend Backend, now func() time.Time) *Cache {
+func newCache(capacity int, client dnsutil.Client, backend Backend, now func() time.Time) *Cache {
 	if capacity < 0 {
 		capacity = 0
 	}

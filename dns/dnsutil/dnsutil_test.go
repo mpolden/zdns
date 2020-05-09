@@ -17,32 +17,30 @@ type response struct {
 	mu     sync.Mutex
 }
 
-type testExchanger struct {
-	mu        sync.RWMutex
-	responses map[string]*response
+type testResolver struct {
+	mu       sync.RWMutex
+	response *response
 }
 
-func newTestExchanger() *testExchanger { return &testExchanger{responses: make(map[string]*response)} }
-
-func (e *testExchanger) setResponse(addr string, r *response) {
+func (e *testResolver) setResponse(r *response) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.responses[addr] = r
+	e.response = r
 }
 
-func (e *testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
+func (e *testResolver) Exchange(msg *dns.Msg) (*dns.Msg, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	r, ok := e.responses[addr]
-	if !ok {
-		panic("no such resolver: " + addr)
+	r := e.response
+	if r == nil {
+		panic("no response set")
 	}
 	if r.fail {
-		return nil, 0, errors.New("error")
+		return nil, errors.New("error")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.answer, time.Second, nil
+	return r.answer, nil
 }
 
 func newA(name string, ttl uint32, ipAddr ...string) *dns.Msg {
@@ -130,17 +128,19 @@ func TestAnswers(t *testing.T) {
 }
 
 func TestExchange(t *testing.T) {
-	addresses := []string{"addr1", "addr2"}
-	exchanger := newTestExchanger()
+	resolver1 := &testResolver{}
+	resolver2 := &testResolver{}
 
 	// First responding resolver returns answer
 	answer1 := newA("example.com.", 60, "192.0.2.1")
 	answer2 := newA("example.com.", 60, "192.0.2.2")
 	r1 := response{answer: answer1}
 	r1.mu.Lock() // Locking first resolver so that second wins
-	exchanger.setResponse(addresses[0], &r1)
-	exchanger.setResponse(addresses[1], &response{answer: answer2})
-	r, err := multiExchange(exchanger, &dns.Msg{}, addresses...)
+	resolver1.setResponse(&r1)
+	resolver2.setResponse(&response{answer: answer2})
+
+	mux := NewMux(resolver1, resolver2)
+	r, err := mux.Exchange(&dns.Msg{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,9 +150,9 @@ func TestExchange(t *testing.T) {
 	r1.mu.Unlock()
 
 	// All resolvers fail
-	exchanger.setResponse(addresses[0], &response{fail: true})
-	exchanger.setResponse(addresses[1], &response{fail: true})
-	_, err = multiExchange(exchanger, &dns.Msg{}, addresses...)
+	resolver1.setResponse(&response{fail: true})
+	resolver2.setResponse(&response{fail: true})
+	_, err = mux.Exchange(&dns.Msg{})
 	if err == nil {
 		t.Errorf("got %s, want error", err)
 	}

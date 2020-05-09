@@ -101,11 +101,19 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 	}
 
 	// DNS client
-	dnsClient := dnsutil.NewClient(config.Resolver.Protocol, config.Resolver.Timeout, config.DNS.Resolvers...)
+	dnsConfig := dnsutil.Config{
+		Network: config.Resolver.Protocol,
+		Timeout: config.Resolver.Timeout,
+	}
+	dnsClients := make([]dnsutil.Client, 0, len(config.DNS.Resolvers))
+	for _, addr := range config.DNS.Resolvers {
+		dnsClients = append(dnsClients, dnsutil.NewClient(addr, dnsConfig))
+	}
+	dnsClient := dnsutil.NewMux(dnsClients...)
 
 	// Cache
 	var dnsCache *cache.Cache
-	var cacheDNS *dnsutil.Client
+	var cacheDNS dnsutil.Client
 	if config.DNS.CachePrefetch {
 		cacheDNS = dnsClient
 	}

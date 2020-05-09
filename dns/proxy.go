@@ -38,12 +38,12 @@ type Proxy struct {
 	cache   *cache.Cache
 	logger  *sql.Logger
 	server  *dns.Server
-	client  *dnsutil.Client
+	client  dnsutil.Client
 	mu      sync.RWMutex
 }
 
 // NewProxy creates a new DNS proxy.
-func NewProxy(cache *cache.Cache, client *dnsutil.Client, logger *sql.Logger) (*Proxy, error) {
+func NewProxy(cache *cache.Cache, client dnsutil.Client, logger *sql.Logger) (*Proxy, error) {
 	return &Proxy{
 		logger: logger,
 		cache:  cache,

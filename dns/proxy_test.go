@@ -8,11 +8,9 @@ import (
 	"reflect"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/miekg/dns"
 	"github.com/mpolden/zdns/cache"
-	"github.com/mpolden/zdns/dns/dnsutil"
 )
 
 func init() {
@@ -41,30 +39,25 @@ type response struct {
 	fail   bool
 }
 
-type testExchanger struct {
-	mu        sync.RWMutex
-	responses map[string]*response
+type testResolver struct {
+	mu       sync.RWMutex
+	response *response
 }
 
-func newTestExchanger() *testExchanger { return &testExchanger{responses: make(map[string]*response)} }
-
-func (e *testExchanger) setResponse(resolver string, response *response) {
+func (e *testResolver) setResponse(response *response) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.responses[resolver] = response
+	e.response = response
 }
 
-func (e *testExchanger) Exchange(msg *dns.Msg, addr string) (*dns.Msg, time.Duration, error) {
+func (e *testResolver) Exchange(msg *dns.Msg) (*dns.Msg, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	r, ok := e.responses[addr]
-	if !ok {
-		panic("no such resolver: " + addr)
+	r := e.response
+	if r == nil || r.fail {
+		return nil, fmt.Errorf("SERVFAIL")
 	}
-	if r.fail {
-		return nil, 0, fmt.Errorf("%s SERVFAIL", addr)
-	}
-	return r.answer, time.Second, nil
+	return r.answer, nil
 }
 
 func testProxy(t *testing.T) *Proxy {
@@ -157,51 +150,34 @@ func TestProxy(t *testing.T) {
 	assertRR(t, p, &m, "::")
 }
 
-func TestProxyWithResolvers(t *testing.T) {
+func TestProxyWithResolver(t *testing.T) {
 	p := testProxy(t)
-	exchanger := newTestExchanger()
-	p.client = &dnsutil.Client{Exchanger: exchanger}
+	r := &testResolver{}
+	p.client = r
 	defer p.Close()
-	// No resolvers
+	// No response
 	assertFailure(t, p, TypeA, "host1")
 
-	// First and only resolver responds succesfully
-	p.client.Addresses = []string{"resolver1"}
+	// Responds succesfully
 	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
 	m := dns.Msg{}
 	m.Id = dns.Id()
 	m.SetQuestion("host1.", dns.TypeA)
 	m.Answer = reply.rr
 	response1 := &response{answer: &m}
-	exchanger.setResponse("resolver1", response1)
+	r.setResponse(response1)
 	assertRR(t, p, &m, "192.0.2.1")
 
-	// First and only resolver fails
+	// Resolver fails
 	response1.fail = true
-	assertFailure(t, p, TypeA, "host1")
-
-	// First resolver fails, but second succeeds
-	reply = ReplyA("host1", net.ParseIP("192.0.2.2"))
-	p.client.Addresses = []string{"resolver1", "resolver2"}
-	m = dns.Msg{}
-	m.Id = dns.Id()
-	m.SetQuestion("host1.", dns.TypeA)
-	m.Answer = reply.rr
-	response2 := &response{answer: &m}
-	exchanger.setResponse("resolver2", response2)
-	assertRR(t, p, &m, "192.0.2.2")
-
-	// All resolvers fail
-	response2.fail = true
 	assertFailure(t, p, TypeA, "host1")
 }
 
 func TestProxyWithCache(t *testing.T) {
 	p := testProxy(t)
 	p.cache = cache.New(10, nil)
-	exchanger := newTestExchanger()
-	p.client = &dnsutil.Client{Exchanger: exchanger}
-	p.client.Addresses = []string{"resolver1"}
+	r := &testResolver{}
+	p.client = r
 	defer p.Close()
 
 	reply := ReplyA("host1", net.ParseIP("192.0.2.1"))
@@ -209,7 +185,7 @@ func TestProxyWithCache(t *testing.T) {
 	m.Id = dns.Id()
 	m.SetQuestion("host1.", dns.TypeA)
 	m.Answer = reply.rr
-	exchanger.setResponse("resolver1", &response{answer: &m})
+	r.setResponse(&response{answer: &m})
 	assertRR(t, p, &m, "192.0.2.1")
 
 	k := cache.NewKey("host1.", dns.TypeA, dns.ClassINET)
