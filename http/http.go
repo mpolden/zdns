@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -13,6 +14,10 @@ import (
 	"github.com/mpolden/zdns/cache"
 	"github.com/mpolden/zdns/dns/dnsutil"
 	"github.com/mpolden/zdns/sql"
+)
+
+const (
+	jsonMediaType = "application/json"
 )
 
 // A Server defines paramaters for running an HTTP server. The HTTP server serves an API for inspecting cache contents
@@ -130,10 +135,22 @@ func resolutionFrom(r *http.Request) (time.Duration, error) {
 	return time.ParseDuration(param)
 }
 
-func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
+func writeJSONHeader(w http.ResponseWriter) { w.Header().Set("Content-Type", jsonMediaType) }
+
+func writeJSON(w http.ResponseWriter, data interface{}) {
+	b, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+	writeJSONHeader(w)
+	w.Write(b)
+}
+
+func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	count, err := countFrom(r)
 	if err != nil {
-		return nil, newHTTPBadRequest(err)
+		writeJSONHeader(w)
+		return newHTTPBadRequest(err)
 	}
 	cacheValues := s.cache.List(count)
 	entries := make([]entry, 0, len(cacheValues))
@@ -147,24 +164,28 @@ func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) (interface
 			Rcode:    dnsutil.RcodeToString[v.Rcode()],
 		})
 	}
-	return entries, nil
+	writeJSON(w, entries)
+	return nil
 }
 
-func (s *Server) cacheResetHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
+func (s *Server) cacheResetHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	s.cache.Reset()
-	return struct {
+	writeJSON(w, struct {
 		Message string `json:"message"`
-	}{"Cleared cache."}, nil
+	}{"Cleared cache."})
+	return nil
 }
 
-func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
+func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	count, err := countFrom(r)
 	if err != nil {
-		return nil, newHTTPBadRequest(err)
+		writeJSONHeader(w)
+		return newHTTPBadRequest(err)
 	}
 	logEntries, err := s.logger.Read(count)
 	if err != nil {
-		return nil, newHTTPError(err)
+		writeJSONHeader(w)
+		return newHTTPError(err)
 	}
 	entries := make([]entry, 0, len(logEntries))
 	for _, le := range logEntries {
@@ -178,17 +199,20 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 			Answers:    le.Answers,
 		})
 	}
-	return entries, nil
+	writeJSON(w, entries)
+	return nil
 }
 
-func (s *Server) basicMetricHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
+func (s *Server) basicMetricHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	resolution, err := resolutionFrom(r)
 	if err != nil {
-		return nil, newHTTPBadRequest(err)
+		writeJSONHeader(w)
+		return newHTTPBadRequest(err)
 	}
 	lstats, err := s.logger.Stats(resolution)
 	if err != nil {
-		return nil, newHTTPError(err)
+		writeJSONHeader(w)
+		return newHTTPError(err)
 	}
 	requests := make([]request, 0, len(lstats.Events))
 	for _, e := range lstats.Events {
@@ -202,7 +226,7 @@ func (s *Server) basicMetricHandler(w http.ResponseWriter, r *http.Request) (int
 	if s.sqlCache != nil {
 		bstats = &backendStats{PendingTasks: s.sqlCache.Stats().PendingTasks}
 	}
-	return stats{
+	stats := stats{
 		Summary: summary{
 			Log: logStats{
 				Since:    lstats.Since.Format(time.RFC3339),
@@ -217,10 +241,12 @@ func (s *Server) basicMetricHandler(w http.ResponseWriter, r *http.Request) (int
 			},
 		},
 		Requests: requests,
-	}, nil
+	}
+	writeJSON(w, stats)
+	return nil
 }
 
-func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
+func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	format := ""
 	if formatParams := r.URL.Query()["format"]; len(formatParams) > 0 {
 		format = formatParams[0]
@@ -229,7 +255,8 @@ func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interfac
 	case "", "basic":
 		return s.basicMetricHandler(w, r)
 	}
-	return nil, newHTTPBadRequest(fmt.Errorf("invalid metric format: %s", format))
+	writeJSONHeader(w)
+	return newHTTPBadRequest(fmt.Errorf("invalid metric format: %s", format))
 }
 
 // Close shuts down the HTTP server.
