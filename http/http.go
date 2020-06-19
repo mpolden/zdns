@@ -181,7 +181,7 @@ func (s *Server) logHandler(w http.ResponseWriter, r *http.Request) (interface{}
 	return entries, nil
 }
 
-func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
+func (s *Server) basicMetricHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
 	resolution, err := resolutionFrom(r)
 	if err != nil {
 		return nil, newHTTPBadRequest(err)
@@ -218,6 +218,18 @@ func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interfac
 		},
 		Requests: requests,
 	}, nil
+}
+
+func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) (interface{}, *httpError) {
+	format := ""
+	if formatParams := r.URL.Query()["format"]; len(formatParams) > 0 {
+		format = formatParams[0]
+	}
+	switch format {
+	case "", "basic":
+		return s.basicMetricHandler(w, r)
+	}
+	return nil, newHTTPBadRequest(fmt.Errorf("invalid metric format: %s", format))
 }
 
 // Close shuts down the HTTP server.
