@@ -1,9 +1,11 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -146,6 +148,21 @@ func writeJSON(w http.ResponseWriter, data interface{}) {
 	w.Write(b)
 }
 
+func writeMetric(w io.StringWriter, name, help string, value int64) {
+	w.WriteString("# HELP ")
+	w.WriteString(name)
+	w.WriteString(" ")
+	w.WriteString(help)
+	w.WriteString("\n")
+	w.WriteString("# TYPE ")
+	w.WriteString(name)
+	w.WriteString(" gauge\n")
+	w.WriteString(name)
+	w.WriteString(" ")
+	w.WriteString(strconv.FormatInt(value, 10))
+	w.WriteString("\n")
+}
+
 func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	count, err := countFrom(r)
 	if err != nil {
@@ -246,6 +263,19 @@ func (s *Server) basicMetricHandler(w http.ResponseWriter, r *http.Request) *htt
 	return nil
 }
 
+func (s *Server) prometheusMetricHandler(w http.ResponseWriter, r *http.Request) *httpError {
+	lstats, err := s.logger.Stats(time.Minute)
+	if err != nil {
+		return newHTTPError(err)
+	}
+	var buf bytes.Buffer
+	writeMetric(&buf, "zdns_requests_total", "The total number of DNS requests.", lstats.Total)
+	writeMetric(&buf, "zdns_requests_hijacked", "The number of hijacked DNS requests.", lstats.Hijacked)
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	w.Write(buf.Bytes())
+	return nil
+}
+
 func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	format := ""
 	if formatParams := r.URL.Query()["format"]; len(formatParams) > 0 {
@@ -254,6 +284,8 @@ func (s *Server) metricHandler(w http.ResponseWriter, r *http.Request) *httpErro
 	switch format {
 	case "", "basic":
 		return s.basicMetricHandler(w, r)
+	case "prometheus":
+		return s.prometheusMetricHandler(w, r)
 	}
 	writeJSONHeader(w)
 	return newHTTPBadRequest(fmt.Errorf("invalid metric format: %s", format))

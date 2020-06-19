@@ -91,27 +91,36 @@ func TestRequests(t *testing.T) {
 		`{"time":"RFC3339","remote_addr":"127.0.0.42","hijacked":false,"type":"A","question":"example.com.","answers":["192.0.2.101","192.0.2.100"]}]`
 	lr2 := `[{"time":"RFC3339","remote_addr":"127.0.0.254","hijacked":true,"type":"AAAA","question":"example.com.","answers":["2001:db8::1"]}]`
 	mr1 := `{"summary":{"log":{"since":"RFC3339","total":2,"hijacked":1,"pending_tasks":0},"cache":{"size":2,"capacity":10,"pending_tasks":0,"backend":{"pending_tasks":0}}},"requests":[{"time":"RFC3339","count":2}]}`
+	mr2 := `# HELP zdns_requests_total The total number of DNS requests.
+# TYPE zdns_requests_total gauge
+zdns_requests_total 2
+# HELP zdns_requests_hijacked The number of hijacked DNS requests.
+# TYPE zdns_requests_hijacked gauge
+zdns_requests_hijacked 1
+`
 
 	var tests = []struct {
-		method   string
-		url      string
-		response string
-		status   int
+		method      string
+		url         string
+		response    string
+		status      int
+		contentType string
 	}{
-		{http.MethodGet, "/not-found", `{"status":404,"message":"Resource not found"}`, 404},
-		{http.MethodGet, "/log/v1/", lr1, 200},
-		{http.MethodGet, "/log/v1/?n=foo", `{"status":400,"message":"invalid value for parameter n: foo"}`, 400},
-		{http.MethodGet, "/log/v1/?n=1", lr2, 200},
-		{http.MethodGet, "/cache/v1/", cr1, 200},
-		{http.MethodGet, "/cache/v1/?n=foo", `{"status":400,"message":"invalid value for parameter n: foo"}`, 400},
-		{http.MethodGet, "/cache/v1/?n=1", cr2, 200},
-		{http.MethodGet, "/metric/v1/", mr1, 200},
-		{http.MethodGet, "/metric/v1/?format=basic", mr1, 200},
-		{http.MethodGet, "/metric/v1/?resolution=1m", mr1, 200},
-		{http.MethodGet, "/metric/v1/?resolution=0", mr1, 200},
-		{http.MethodGet, "/metric/v1/?format=foo", `{"status":400,"message":"invalid metric format: foo"}`, 400},
-		{http.MethodGet, "/metric/v1/?resolution=foo", `{"status":400,"message":"time: invalid duration foo"}`, 400},
-		{http.MethodDelete, "/cache/v1/", `{"message":"Cleared cache."}`, 200},
+		{http.MethodGet, "/not-found", `{"status":404,"message":"Resource not found"}`, 404, jsonMediaType},
+		{http.MethodGet, "/log/v1/", lr1, 200, jsonMediaType},
+		{http.MethodGet, "/log/v1/?n=foo", `{"status":400,"message":"invalid value for parameter n: foo"}`, 400, jsonMediaType},
+		{http.MethodGet, "/log/v1/?n=1", lr2, 200, jsonMediaType},
+		{http.MethodGet, "/cache/v1/", cr1, 200, jsonMediaType},
+		{http.MethodGet, "/cache/v1/?n=foo", `{"status":400,"message":"invalid value for parameter n: foo"}`, 400, jsonMediaType},
+		{http.MethodGet, "/cache/v1/?n=1", cr2, 200, jsonMediaType},
+		{http.MethodGet, "/metric/v1/", mr1, 200, jsonMediaType},
+		{http.MethodGet, "/metric/v1/?format=basic", mr1, 200, jsonMediaType},
+		{http.MethodGet, "/metric/v1/?format=prometheus", mr2, 200, "text/plain; version=0.0.4"},
+		{http.MethodGet, "/metric/v1/?resolution=1m", mr1, 200, jsonMediaType},
+		{http.MethodGet, "/metric/v1/?resolution=0", mr1, 200, jsonMediaType},
+		{http.MethodGet, "/metric/v1/?format=foo", `{"status":400,"message":"invalid metric format: foo"}`, 400, jsonMediaType},
+		{http.MethodGet, "/metric/v1/?resolution=foo", `{"status":400,"message":"time: invalid duration foo"}`, 400, jsonMediaType},
+		{http.MethodDelete, "/cache/v1/", `{"message":"Cleared cache."}`, 200, jsonMediaType},
 	}
 
 	for i, tt := range tests {
@@ -135,7 +144,7 @@ func TestRequests(t *testing.T) {
 			t.Errorf("#%d: %s %s returned status %d, want %d", i, tt.method, tt.url, got, tt.status)
 		}
 
-		if got, want := res.Header.Get("Content-Type"), "application/json"; got != want {
+		if got, want := res.Header.Get("Content-Type"), tt.contentType; got != want {
 			t.Errorf("#%d: got Content-Type %q, want %q", i, got, want)
 		}
 
