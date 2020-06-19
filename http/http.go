@@ -102,7 +102,7 @@ func NewServer(cache *cache.Cache, logger *sql.Logger, sqlCache *sql.Cache, addr
 }
 
 func (s *Server) handler() http.Handler {
-	r := newRouter()
+	r := &router{}
 	r.route(http.MethodGet, "/cache/v1/", s.cacheHandler)
 	r.route(http.MethodGet, "/log/v1/", s.logHandler)
 	r.route(http.MethodGet, "/metric/v1/", s.metricHandler)
