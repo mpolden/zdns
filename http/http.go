@@ -1,11 +1,9 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -22,7 +20,7 @@ const (
 	jsonMediaType = "application/json"
 )
 
-// A Server defines paramaters for running an HTTP server. The HTTP server serves an API for inspecting cache contents
+// A Server defines parameters for running an HTTP server. The HTTP server serves an API for inspecting cache contents
 // and request log.
 type Server struct {
 	cache    *cache.Cache
@@ -99,10 +97,10 @@ func newHTTPBadRequest(err error) *httpError {
 func NewServer(cache *cache.Cache, logger *sql.Logger, sqlCache *sql.Cache, addr string) *Server {
 	server := &http.Server{Addr: addr}
 	s := &Server{
+		server:   server,
 		cache:    cache,
 		logger:   logger,
 		sqlCache: sqlCache,
-		server:   server,
 	}
 	s.server.Handler = s.handler()
 	return s
@@ -111,9 +109,11 @@ func NewServer(cache *cache.Cache, logger *sql.Logger, sqlCache *sql.Cache, addr
 func (s *Server) handler() http.Handler {
 	r := &router{}
 	r.route(http.MethodGet, "/cache/v1/", s.cacheHandler)
-	r.route(http.MethodGet, "/log/v1/", s.logHandler)
-	r.route(http.MethodGet, "/metric/v1/", s.metricHandler)
 	r.route(http.MethodDelete, "/cache/v1/", s.cacheResetHandler)
+	if s.logger != nil {
+		r.route(http.MethodGet, "/log/v1/", s.logHandler)
+		r.route(http.MethodGet, "/metric/v1/", s.metricHandler)
+	}
 	return r.handler()
 }
 
@@ -146,21 +146,6 @@ func writeJSON(w http.ResponseWriter, data interface{}) {
 	}
 	writeJSONHeader(w)
 	w.Write(b)
-}
-
-func writeMetric(w io.StringWriter, name, help string, value int64) {
-	w.WriteString("# HELP ")
-	w.WriteString(name)
-	w.WriteString(" ")
-	w.WriteString(help)
-	w.WriteString("\n")
-	w.WriteString("# TYPE ")
-	w.WriteString(name)
-	w.WriteString(" gauge\n")
-	w.WriteString(name)
-	w.WriteString(" ")
-	w.WriteString(strconv.FormatInt(value, 10))
-	w.WriteString("\n")
 }
 
 func (s *Server) cacheHandler(w http.ResponseWriter, r *http.Request) *httpError {
@@ -268,11 +253,9 @@ func (s *Server) prometheusMetricHandler(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return newHTTPError(err)
 	}
-	var buf bytes.Buffer
-	writeMetric(&buf, "zdns_requests_total", "The total number of DNS requests.", lstats.Total)
-	writeMetric(&buf, "zdns_requests_hijacked", "The number of hijacked DNS requests.", lstats.Hijacked)
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	w.Write(buf.Bytes())
+	totalRequestsGauge.Set(float64(lstats.Total))
+	hijackedRequestsGauge.Set(float64(lstats.Hijacked))
+	prometheusHandler.ServeHTTP(w, r)
 	return nil
 }
 

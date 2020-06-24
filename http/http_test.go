@@ -37,8 +37,8 @@ func testServer() (*httptest.Server, *Server) {
 	logger := sql.NewLogger(sqlClient, sql.LogAll, 0)
 	sqlCache := sql.NewCache(sqlClient)
 	cache := cache.New(10, nil)
-	server := Server{logger: logger, cache: cache, sqlCache: sqlCache}
-	return httptest.NewServer(server.handler()), &server
+	server := NewServer(cache, logger, sqlCache, "")
+	return httptest.NewServer(server.handler()), server
 }
 
 func httpGet(url string) (*http.Response, string, error) {
@@ -91,14 +91,15 @@ func TestRequests(t *testing.T) {
 		`{"time":"RFC3339","remote_addr":"127.0.0.42","hijacked":false,"type":"A","question":"example.com.","answers":["192.0.2.101","192.0.2.100"]}]`
 	lr2 := `[{"time":"RFC3339","remote_addr":"127.0.0.254","hijacked":true,"type":"AAAA","question":"example.com.","answers":["2001:db8::1"]}]`
 	mr1 := `{"summary":{"log":{"since":"RFC3339","total":2,"hijacked":1,"pending_tasks":0},"cache":{"size":2,"capacity":10,"pending_tasks":0,"backend":{"pending_tasks":0}}},"requests":[{"time":"RFC3339","count":2}]}`
-	mr2 := `# HELP zdns_requests_total The total number of DNS requests.
-# TYPE zdns_requests_total gauge
-zdns_requests_total 2
+	mr2 := `
+<ANY>
 # HELP zdns_requests_hijacked The number of hijacked DNS requests.
 # TYPE zdns_requests_hijacked gauge
 zdns_requests_hijacked 1
+# HELP zdns_requests_total The total number of DNS requests.
+# TYPE zdns_requests_total gauge
+zdns_requests_total 2
 `
-
 	var tests = []struct {
 		method      string
 		url         string
@@ -115,7 +116,7 @@ zdns_requests_hijacked 1
 		{http.MethodGet, "/cache/v1/?n=1", cr2, 200, jsonMediaType},
 		{http.MethodGet, "/metric/v1/", mr1, 200, jsonMediaType},
 		{http.MethodGet, "/metric/v1/?format=basic", mr1, 200, jsonMediaType},
-		{http.MethodGet, "/metric/v1/?format=prometheus", mr2, 200, "text/plain; version=0.0.4"},
+		{http.MethodGet, "/metric/v1/?format=prometheus", mr2, 200, "text/plain; version=0.0.4; charset=utf-8"},
 		{http.MethodGet, "/metric/v1/?resolution=1m", mr1, 200, jsonMediaType},
 		{http.MethodGet, "/metric/v1/?resolution=0", mr1, 200, jsonMediaType},
 		{http.MethodGet, "/metric/v1/?format=foo", `{"status":400,"message":"invalid metric format: foo"}`, 400, jsonMediaType},
@@ -151,6 +152,7 @@ zdns_requests_hijacked 1
 		got := string(data)
 		want := regexp.QuoteMeta(tt.response)
 		want = strings.ReplaceAll(want, "RFC3339", `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`)
+		want = strings.ReplaceAll(want, "<ANY>", ".*")
 		matched, err := regexp.MatchString(want, got)
 		if err != nil {
 			t.Fatal(err)
