@@ -39,10 +39,7 @@ hijack_mode = "zero"
 	defer os.Remove(f)
 
 	sig := make(chan os.Signal, 1)
-	cli, err := newCli(ioutil.Discard, []string{"-f", f}, f, sig)
-	if err != nil {
-		t.Fatal(err)
-	}
+	cli := newCli(ioutil.Discard, []string{"-f", f}, f, sig)
 	sig <- syscall.SIGTERM
 	cli.sh.Close()
 }

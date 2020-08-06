@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -25,6 +24,11 @@ const (
 	configName = "." + name + "rc"
 )
 
+func init() {
+	log.SetPrefix(logPrefix)
+	log.SetFlags(log.Lshortfile)
+}
+
 type server interface{ ListenAndServe() error }
 
 type cli struct {
@@ -33,7 +37,7 @@ type cli struct {
 	wg      sync.WaitGroup
 }
 
-func defaultConfigFile() string { return filepath.Join(os.Getenv("HOME"), configName) }
+func configPath() string { return filepath.Join(os.Getenv("HOME"), configName) }
 
 func readConfig(file string) (zdns.Config, error) {
 	f, err := os.Open(file)
@@ -48,8 +52,7 @@ func fatal(err error) {
 	if err == nil {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "%s: %s\n", logPrefix, err)
-	os.Exit(1)
+	log.Fatal(err)
 }
 
 func (c *cli) runServer(server server) {
@@ -62,25 +65,18 @@ func (c *cli) runServer(server server) {
 	}()
 }
 
-func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal) (*cli, error) {
+func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal) *cli {
 	cl := flag.CommandLine
 	cl.SetOutput(out)
+	log.SetOutput(out)
 	confFile := cl.String("f", configFile, "config file `path`")
-	help := cl.Bool("h", false, "print usage")
 	cl.Parse(args)
-	if *help {
-		cl.Usage()
-		return nil, fmt.Errorf("usage option given")
-	}
 
 	// Config
 	config, err := readConfig(*confFile)
 	fatal(err)
 
-	// Logging and signal handling
-	log.SetOutput(out)
-	log.SetPrefix(logPrefix)
-	log.SetFlags(log.Lshortfile)
+	// Signal handler
 	sigHandler := signal.NewHandler(sig)
 
 	// SQL backends
@@ -160,7 +156,7 @@ func newCli(out io.Writer, args []string, configFile string, sig chan os.Signal)
 
 	// ... and finally the server itself
 	sigHandler.OnClose(dnsSrv)
-	return &cli{servers: servers, sh: sigHandler}, nil
+	return &cli{servers: servers, sh: sigHandler}
 }
 
 func (c *cli) run() {
@@ -172,8 +168,7 @@ func (c *cli) run() {
 }
 
 func main() {
-	c, err := newCli(os.Stderr, os.Args[1:], defaultConfigFile(), make(chan os.Signal, 1))
-	if err == nil {
-		c.run()
-	}
+	sig := make(chan os.Signal, 1)
+	c := newCli(os.Stderr, os.Args[1:], configPath(), sig)
+	c.run()
 }
