@@ -7,7 +7,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.0.2
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/mattn/go-sqlite3 v1.13.0
-	github.com/miekg/dns v1.1.29
+	github.com/miekg/dns v1.1.31
 	github.com/prometheus/client_golang v1.7.1
 	google.golang.org/appengine v1.6.1 // indirect
 )
