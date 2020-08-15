@@ -179,7 +179,7 @@ cache_persist = true
 
 		{conf0, "cache size must be >= 0"},
 		{conf1, "invalid hijack mode: foo"},
-		{conf2, "invalid refresh interval: time: invalid duration foo"},
+		{conf2, "invalid refresh interval: time: invalid duration \"foo\""},
 		{conf3, "refresh interval must be >= 0"},
 		{conf4, "invalid resolver: address foo: missing port in address"},
 		{conf5, "invalid resolver protocol: foo"},
