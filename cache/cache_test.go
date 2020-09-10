@@ -146,12 +146,12 @@ func TestCache(t *testing.T) {
 		}
 		c.Close()
 		c.mu.RLock()
-		if _, ok := c.values[k]; ok != tt.ok {
+		if _, ok := c.entries[k]; ok != tt.ok {
 			t.Errorf("#%d: values[%d] = %t, want %t", i, k, ok, tt.ok)
 		}
 		keyIdx := -1
-		for i, key := range c.keys {
-			if key == k {
+		for el := c.values.Front(); el != nil; el = el.Next() {
+			if el.Value.(Value).Key == k {
 				keyIdx = i
 				break
 			}
@@ -181,7 +181,7 @@ func TestCacheCapacity(t *testing.T) {
 			msgs = append(msgs, m)
 			c.Set(k, m)
 		}
-		if got := len(c.values); got != tt.size {
+		if got := len(c.entries); got != tt.size {
 			t.Errorf("#%d: len(values) = %d, want %d", i, got, tt.size)
 		}
 		if tt.capacity > 0 && tt.addCount > tt.capacity && tt.capacity == tt.size {
@@ -243,10 +243,10 @@ func TestReset(t *testing.T) {
 	c := New(10, nil)
 	c.Set(uint32(1), &dns.Msg{})
 	c.Reset()
-	if got, want := len(c.values), 0; got != want {
+	if got, want := len(c.entries), 0; got != want {
 		t.Errorf("len(values) = %d, want %d", got, want)
 	}
-	if got, want := len(c.keys), 0; got != want {
+	if got, want := c.values.Len(), 0; got != want {
 		t.Errorf("len(keys) = %d, want %d", got, want)
 	}
 }
@@ -332,8 +332,8 @@ func TestCacheEvictAndUpdate(t *testing.T) {
 	// Last query refreshes key
 	c.Close()
 	keyExists := false
-	for _, k := range c.keys {
-		if k == key {
+	for el := c.values.Front(); el != nil; el = el.Next() {
+		if el.Value.(Value).Key == key {
 			keyExists = true
 		}
 	}
@@ -393,7 +393,7 @@ func TestCacheWithBackend(t *testing.T) {
 			backend.Set(v.Key, v)
 		}
 		c := NewWithBackend(tt.capacity, nil, backend)
-		if got, want := len(c.values), tt.cacheSize; got != want {
+		if got, want := len(c.entries), tt.cacheSize; got != want {
 			t.Errorf("#%d: len(values) = %d, want %d", i, got, want)
 		}
 		if tt.backendSize > tt.capacity {

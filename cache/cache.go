@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"container/list"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -32,8 +33,8 @@ type Cache struct {
 	client   dnsutil.Client
 	backend  Backend
 	capacity int
-	values   map[uint32]Value
-	keys     []uint32
+	entries  map[uint32]*list.Element
+	values   *list.List
 	mu       sync.RWMutex
 	now      func() time.Time
 	queue    *queue
@@ -139,8 +140,8 @@ func newCache(capacity int, client dnsutil.Client, backend Backend, now func() t
 		client:   client,
 		now:      now,
 		capacity: capacity,
-		values:   make(map[uint32]Value, capacity),
-		keys:     make([]uint32, 0, capacity),
+		entries:  make(map[uint32]*list.Element, capacity),
+		values:   list.New(),
 		queue:    newQueue(1024),
 	}
 	if backend != nil {
@@ -200,18 +201,19 @@ func (c *Cache) Get(key uint32) (*dns.Msg, bool) {
 func (c *Cache) getValue(key uint32) (*Value, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	v, ok := c.values[key]
+	v, ok := c.entries[key]
 	if !ok {
 		return nil, false
 	}
-	if c.isExpired(&v) {
+	value := v.Value.(Value)
+	if c.isExpired(&value) {
 		if !c.prefetch() {
 			c.queue.add(func() { c.evictWithLock(key) })
 			return nil, false
 		}
-		c.queue.add(func() { c.refresh(key, v.msg) })
+		c.queue.add(func() { c.refresh(key, value.msg) })
 	}
-	return &v, true
+	return &value, true
 }
 
 // List returns the n most recent values in cache c.
@@ -219,11 +221,11 @@ func (c *Cache) List(n int) []Value {
 	values := make([]Value, 0, n)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	for i := len(c.keys) - 1; i >= 0; i-- {
+	for el := c.values.Back(); el != nil; el = el.Prev() {
 		if len(values) == n {
 			break
 		}
-		v := c.values[c.keys[i]]
+		v := el.Value.(Value)
 		values = append(values, v)
 	}
 	return values
@@ -248,7 +250,7 @@ func (c *Cache) Stats() Stats {
 	defer c.mu.RUnlock()
 	return Stats{
 		Capacity:     c.capacity,
-		Size:         len(c.values),
+		Size:         len(c.entries),
 		PendingTasks: len(c.queue.tasks),
 	}
 }
@@ -261,16 +263,16 @@ func (c *Cache) setValue(value Value) bool {
 	if c.capacity == 0 || !canCache(value.msg) {
 		return false
 	}
-	if len(c.values) == c.capacity && c.capacity > 0 {
-		evict := c.keys[0]
-		delete(c.values, evict)
-		c.keys = c.keys[1:]
-		if c.hasBackend() {
-			c.backend.Evict(evict)
-		}
+	if len(c.entries) == c.capacity {
+		first := c.values.Front()
+		key := first.Value.(Value).Key
+		c.evict(key, first)
 	}
-	c.values[value.Key] = value
-	c.appendKey(value.Key)
+	current, ok := c.entries[value.Key]
+	if ok {
+		c.values.Remove(current)
+	}
+	c.entries[value.Key] = c.values.PushBack(value)
 	if c.hasBackend() {
 		c.backend.Set(value.Key, value)
 	}
@@ -281,8 +283,8 @@ func (c *Cache) setValue(value Value) bool {
 func (c *Cache) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.values = make(map[uint32]Value, cap(c.keys))
-	c.keys = make([]uint32, 0, cap(c.keys))
+	c.entries = make(map[uint32]*list.Element, c.capacity)
+	c.values = c.values.Init()
 	if c.hasBackend() {
 		c.backend.Reset()
 	}
@@ -303,41 +305,25 @@ func (c *Cache) refresh(key uint32, old *dns.Msg) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.set(key, r) {
-		c.evict(key)
+		c.evict(key, c.entries[key])
 	}
 }
 
 func (c *Cache) evictWithLock(key uint32) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.evict(key)
+	c.evict(key, c.entries[key])
 }
 
-func (c *Cache) evict(key uint32) {
-	delete(c.values, key)
-	c.removeKey(key)
+func (c *Cache) evict(key uint32, element *list.Element) {
+	if element == nil {
+		return
+	}
+	delete(c.entries, key)
+	c.values.Remove(element)
 	if c.hasBackend() {
 		c.backend.Evict(key)
 	}
-}
-
-func (c *Cache) appendKey(key uint32) {
-	c.removeKey(key)
-	c.keys = append(c.keys, key)
-}
-
-func (c *Cache) removeKey(key uint32) {
-	if len(c.keys) == 0 {
-		return
-	}
-	keys := make([]uint32, 0, cap(c.keys))
-	for _, k := range c.keys {
-		if k == key {
-			continue
-		}
-		keys = append(keys, k)
-	}
-	c.keys = keys
 }
 
 func (c *Cache) isExpired(v *Value) bool {
