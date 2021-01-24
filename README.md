@@ -1,6 +1,6 @@
 # zdns
 
-[![Build Status](https://travis-ci.org/mpolden/zdns.svg?branch=master)](https://travis-ci.org/mpolden/zdns)
+![Build Status](https://github.com/mpolden/zdns/workflows/ci/badge.svg)
 
 `zdns` is a privacy-focused [DNS
 resolver](https://en.wikipedia.org/wiki/Domain_Name_System#DNS_resolvers) and
