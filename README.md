@@ -45,10 +45,10 @@ configure.
 
 ### Installation
 
-`zdns` is a standard Go package. Use `go get` to install it.
+`zdns` is a standard Go package. Install with:
 
 ``` shell
-$ go get github.com/mpolden/zdns/...
+$ go install github.com/mpolden/zdns/...@latest
 ```
 
 ### Configuration
