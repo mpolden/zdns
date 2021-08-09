@@ -9,5 +9,5 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/miekg/dns v1.1.31
 	github.com/prometheus/client_golang v1.7.1
-	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e // indirect
+	honnef.co/go/tools v0.2.0
 )

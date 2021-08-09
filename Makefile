@@ -13,20 +13,15 @@ test-race:
 vet:
 	go vet ./...
 
-golint: install-tools
-	golint ./...
-
-staticcheck: install-tools
-	staticcheck ./...
+# https://github.com/golang/go/issues/25922
+# https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
+tools:
+	go generate -tags tools ./...
 
 fmt:
 	bash -c "diff --line-format='%L' <(echo -n) <(gofmt -d -s .)"
 
-lint: fmt vet golint staticcheck
-
-install-tools:
-	cd tools && \
-		go list -tags tools -f '{{range $$i := .Imports}}{{printf "%s\n" $$i}}{{end}}' | xargs go install
+lint: fmt vet tools
 
 install:
 	go install ./...
