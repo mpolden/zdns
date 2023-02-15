@@ -8,6 +8,6 @@ require (
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/miekg/dns v1.1.31
-	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_golang v1.11.1
 	honnef.co/go/tools v0.2.0
 )
