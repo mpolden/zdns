@@ -209,7 +209,7 @@ func (c *Config) load() error {
 // ReadConfig reads a zdns configuration from reader r.
 func ReadConfig(r io.Reader) (Config, error) {
 	conf := newConfig()
-	_, err := toml.DecodeReader(r, &conf)
+	_, err := toml.NewDecoder(r).Decode(&conf)
 	if err != nil {
 		return Config{}, err
 	}
