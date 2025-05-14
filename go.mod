@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 require (
 	github.com/BurntSushi/toml v1.2.1
-	github.com/cenkalti/backoff/v4 v4.0.2
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/miekg/dns v1.1.51
