@@ -116,7 +116,7 @@ zdns_requests_total 2
 		{http.MethodGet, "/cache/v1/?n=1", cr2, 200, jsonMediaType},
 		{http.MethodGet, "/metric/v1/", mr1, 200, jsonMediaType},
 		{http.MethodGet, "/metric/v1/?format=basic", mr1, 200, jsonMediaType},
-		{http.MethodGet, "/metric/v1/?format=prometheus", mr2, 200, "text/plain; version=0.0.4; charset=utf-8"},
+		{http.MethodGet, "/metric/v1/?format=prometheus", mr2, 200, "text/plain; version=0.0.4; charset=utf-8; escaping=underscores"},
 		{http.MethodGet, "/metric/v1/?resolution=1m", mr1, 200, jsonMediaType},
 		{http.MethodGet, "/metric/v1/?resolution=0", mr1, 200, jsonMediaType},
 		{http.MethodGet, "/metric/v1/?format=foo", `{"status":400,"message":"invalid metric format: foo"}`, 400, jsonMediaType},
