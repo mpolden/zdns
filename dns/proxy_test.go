@@ -23,6 +23,7 @@ func (w *dnsWriter) LocalAddr() net.Addr { return nil }
 func (w *dnsWriter) RemoteAddr() net.Addr {
 	return &net.UDPAddr{IP: net.IPv4(192, 0, 2, 100), Port: 50000}
 }
+func (w *dnsWriter) Network() string             { return "udp" }
 func (w *dnsWriter) Write(b []byte) (int, error) { return 0, nil }
 func (w *dnsWriter) Close() error                { return nil }
 func (w *dnsWriter) TsigStatus() error           { return nil }
